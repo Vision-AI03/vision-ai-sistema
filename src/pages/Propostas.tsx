@@ -7,11 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   FileText, Plus, Loader2, Sparkles, Copy, Check, Send,
-  Calendar, DollarSign, ChevronRight, Download,
+  Calendar, DollarSign, ChevronRight, Download, Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -171,7 +175,9 @@ function PropostaIframe({ html }: { html: string }) {
       if (doc?.body) {
         setHeight(Math.max(doc.body.scrollHeight, 600));
       }
-    } catch {}
+    } catch {
+      setHeight(window.innerHeight);
+    }
   }
 
   return (
@@ -179,17 +185,34 @@ function PropostaIframe({ html }: { html: string }) {
       ref={iframeRef}
       srcDoc={html}
       onLoad={adjustHeight}
-      className="w-full border-0 rounded"
-      style={{ height, display: "block" }}
+      style={{ width: "100%", height, display: "block", border: "none" }}
       title="Proposta gerada"
       sandbox="allow-same-origin"
     />
   );
 }
 
+// ─── Preview skeleton ─────────────────────────────────────────────────────────
+function PropostaSkeleton() {
+  return (
+    <div className="p-4 space-y-4">
+      <Skeleton className="h-48 w-full rounded-lg" />
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+      <Skeleton className="h-32 w-full rounded-lg" />
+      <div className="grid grid-cols-2 gap-3">
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-24 rounded-lg" />
+      </div>
+      <Skeleton className="h-20 w-full rounded-lg" />
+    </div>
+  );
+}
+
 // ─── PDF export ──────────────────────────────────────────────────────────────
 async function exportarPDF(html: string, titulo: string) {
-  // Load html2pdf lazily
   if (!(window as any).html2pdf) {
     await new Promise<void>((resolve, reject) => {
       const s = document.createElement("script");
@@ -226,6 +249,7 @@ export default function Propostas() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [selectedProposta, setSelectedProposta] = useState<Proposta | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [propostaToDelete, setPropostaToDelete] = useState<Proposta | null>(null);
   const { toast } = useToast();
 
   // Form state
@@ -258,6 +282,7 @@ export default function Propostas() {
       return;
     }
     setGenerating(true);
+    setConteudoGerado("");
     try {
       const contextoCompleto = resumoCobranca
         ? `${contextoCliente}\n\nModelo de cobrança: ${resumoCobranca}`
@@ -321,6 +346,21 @@ export default function Propostas() {
     } as any).eq("id", propostaId);
     fetchPropostas();
     if (selectedProposta?.id === propostaId) setSelectedProposta(prev => prev ? { ...prev, status } : prev);
+  }
+
+  async function handleDelete(proposta: Proposta) {
+    const { error } = await supabase.from("propostas").delete().eq("id", proposta.id);
+    if (error) {
+      toast({ title: "Erro ao excluir proposta", variant: "destructive" });
+    } else {
+      setPropostas(prev => prev.filter(p => p.id !== proposta.id));
+      if (selectedProposta?.id === proposta.id) {
+        setDrawerOpen(false);
+        setSelectedProposta(null);
+      }
+      toast({ title: "Proposta excluída" });
+    }
+    setPropostaToDelete(null);
   }
 
   async function handleExportPDF(html: string, tituloDoc: string) {
@@ -425,7 +465,7 @@ export default function Propostas() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Preview da Proposta</CardTitle>
-                  {conteudoGerado && (
+                  {conteudoGerado && !generating && (
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
                         onClick={() => { navigator.clipboard.writeText(conteudoGerado); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
@@ -442,7 +482,9 @@ export default function Propostas() {
                 </div>
               </CardHeader>
               <CardContent className="p-0 overflow-hidden rounded-b-lg">
-                {!conteudoGerado ? (
+                {generating ? (
+                  <PropostaSkeleton />
+                ) : !conteudoGerado ? (
                   <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-sm">
                     <FileText className="h-10 w-10 mb-3 opacity-30" />
                     <p>A proposta gerada aparecerá aqui</p>
@@ -469,10 +511,18 @@ export default function Propostas() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {propostas.map(proposta => (
-                <Card key={proposta.id} className="cursor-pointer hover:border-primary/50 transition-colors"
+                <Card key={proposta.id}
+                  className="cursor-pointer hover:border-primary/50 transition-colors group relative"
                   onClick={() => { setSelectedProposta(proposta); setDrawerOpen(true); }}>
+                  {/* Trash — visible on card hover */}
+                  <button
+                    className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10"
+                    onClick={e => { e.stopPropagation(); setPropostaToDelete(proposta); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </button>
                   <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2 pr-6">
                       <p className="font-medium text-sm line-clamp-2">{proposta.titulo}</p>
                       <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                     </div>
@@ -500,9 +550,12 @@ export default function Propostas() {
         </TabsContent>
       </Tabs>
 
-      {/* Fullscreen drawer — Dialog for max width */}
+      {/* Fullscreen dialog */}
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DialogContent className="max-w-[92vw] w-full max-h-[92vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent
+          className="flex flex-col p-0 overflow-hidden"
+          style={{ maxWidth: "95vw", width: "95vw", height: "95vh", maxHeight: "95vh" }}
+        >
           {selectedProposta && (
             <>
               {/* Fixed header */}
@@ -536,13 +589,20 @@ export default function Propostas() {
                     </Button>
                   ))}
                   {selectedProposta.conteudo_gerado && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                    <Button size="sm" variant="outline"
+                      className="h-7 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
                       onClick={() => handleExportPDF(selectedProposta.conteudo_gerado!, selectedProposta.titulo)}
                       disabled={exportingPdf}>
                       {exportingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                       {exportingPdf ? "Gerando..." : "Exportar PDF"}
                     </Button>
                   )}
+                  <Button size="sm" variant="outline"
+                    className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={() => setPropostaToDelete(selectedProposta)}>
+                    <Trash2 className="h-3 w-3" />
+                    Excluir
+                  </Button>
                 </div>
               </div>
 
@@ -554,13 +614,13 @@ export default function Propostas() {
                   <p className="text-sm bg-secondary/30 rounded p-3 whitespace-pre-wrap">{selectedProposta.contexto_cliente}</p>
                 </div>
 
-                {/* Proposta gerada — iframe auto-altura */}
-                <div className="px-6 py-4 space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Proposta Gerada</p>
+                {/* Proposta gerada — iframe fullwidth */}
+                <div className="py-4 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-6">Proposta Gerada</p>
                   {selectedProposta.conteudo_gerado ? (
                     <PropostaIframe html={selectedProposta.conteudo_gerado} />
                   ) : (
-                    <p className="text-sm text-muted-foreground">Proposta não gerada.</p>
+                    <p className="text-sm text-muted-foreground px-6">Proposta não gerada.</p>
                   )}
                 </div>
 
@@ -572,6 +632,26 @@ export default function Propostas() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!propostaToDelete} onOpenChange={open => { if (!open) setPropostaToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir proposta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a proposta "{propostaToDelete?.titulo}"? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => propostaToDelete && handleDelete(propostaToDelete)}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

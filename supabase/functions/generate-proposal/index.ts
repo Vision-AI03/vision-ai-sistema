@@ -133,10 +133,10 @@ ESTRUTURA OBRIGATÓRIA DA PROPOSTA (8 seções):
 - Fundo azul escuro com texto branco para destacar
 
 7. PRÓXIMOS PASSOS
-- 3 passos numerados para fechar o negócio
-- Chamada para ação clara e urgente
-- Imagem ou visual de fundo profissional (use gradiente)
-- Botão/destaque com oferta especial se aplicável
+- 3 passos numerados para fechar o negócio (texto descritivo, sem botões)
+- Chamada para ação clara com dados de contato por extenso
+- Visual de fundo profissional (use gradiente)
+- Destaque com oferta especial em texto, não em botão
 
 8. RODAPÉ DE CONTATO
 - Dados da Vision AI: Wesley Augusto Silva de Paula
@@ -183,6 +183,22 @@ p, li { page-break-inside: avoid !important; orphans: 3; widows: 3; }
 section, .section, .card { page-break-inside: avoid !important; break-inside: avoid !important; }
 .hero, .capa { page-break-after: avoid !important; }
 table, tr { page-break-inside: avoid !important; }
+
+=== REGRAS DE CONTEÚDO OBRIGATÓRIAS ===
+
+PROIBIDO incluir no HTML gerado:
+- Nenhum elemento <button> em nenhuma parte do documento
+- Nenhum elemento <a href> com aparência de botão (background colorido, border-radius e padding que pareça botão)
+- Nenhuma chamada para ação que mencione "clique aqui", "acesse", "agende pelo link" ou qualquer instrução que pressuponha interatividade
+- Nenhum formulário (<form>, <input>)
+
+PERMITIDO para contato/CTA:
+- Texto simples com WhatsApp, e-mail e site escritos por extenso
+- Exemplo correto: "Entre em contato: WhatsApp (19) 99794-8118 | wesleyvisionai@gmail.com | agenciavisionai.com"
+- Seção de próximos passos deve ser texto descritivo com numeração, não botões
+
+A proposta é um DOCUMENTO para impressão/PDF, não uma página web interativa.
+Todos os elementos devem ser estáticos e legíveis em papel.
 
 FORMATO DE SAÍDA:
 Retorne APENAS o HTML completo começando com <!DOCTYPE html> e terminando com </html>. Sem markdown, sem explicações, sem \`\`\`html. Apenas o HTML puro.
