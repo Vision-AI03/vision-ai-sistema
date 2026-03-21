@@ -140,8 +140,14 @@ function MiniCalendar({ reunioes, leads, selectedDate, onSelectDate }: {
   const weekHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   function getReunioesDia(day: Date) {
-    const dateStr = format(day, "yyyy-MM-dd");
-    return reunioes.filter(r => r.data_hora_inicio.startsWith(dateStr));
+    return reunioes.filter(r => {
+      if (!r.data_hora_inicio) return false;
+      try {
+        return isSameDay(parseISO(r.data_hora_inicio), day);
+      } catch {
+        return false;
+      }
+    });
   }
 
   function handleMouseEnter(day: Date, e: React.MouseEvent) {
