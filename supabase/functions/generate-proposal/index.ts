@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -129,6 +130,34 @@ A Vision AI é uma agência especializada em:
 
 ---
 *Proposta válida por 30 dias | Vision AI — Inteligência que transforma negócios*
+
+=== REGRAS CRÍTICAS DE PAGINAÇÃO PARA PDF ===
+O HTML gerado será convertido para PDF com quebras de página automáticas. Siga estas regras obrigatórias no CSS:
+
+1. Adicione no <style> do <head> estas regras globais:
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+h1, h2, h3, h4 { page-break-after: avoid !important; break-after: avoid !important; }
+img { page-break-inside: avoid !important; break-inside: avoid !important; max-width: 100% !important; }
+p, li { page-break-inside: avoid !important; break-inside: avoid !important; orphans: 3; widows: 3; }
+section, .section, .card, .feature-card, .problem-item, .step, .metric-card { page-break-inside: avoid !important; break-inside: avoid !important; }
+.hero, .header, .capa { page-break-after: avoid !important; break-after: avoid !important; }
+table { page-break-inside: avoid !important; break-inside: avoid !important; }
+tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+
+2. Todo elemento que contém imagem + texto juntos deve ter:
+style="page-break-inside: avoid; break-inside: avoid;"
+
+3. Cada seção principal deve ser uma <section> ou <div class="section"> com:
+style="page-break-inside: avoid; break-inside: avoid;"
+
+4. Imagens nunca devem ter height fixo maior que 350px.
+Use max-height: 350px; object-fit: cover; width: 100%;
+
+5. Entre seções use padding em vez de margin para espaçamento.
+
+6. O documento deve ter no CSS:
+@page { size: A4; margin: 0; }
+body { margin: 0; padding: 0; width: 210mm; }
 
 Retorne APENAS o markdown da proposta, sem comentários adicionais.`;
 

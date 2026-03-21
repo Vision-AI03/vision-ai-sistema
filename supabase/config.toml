@@ -44,3 +44,15 @@ verify_jwt = false
 
 [functions.generate-weekly-report]
 verify_jwt = false
+
+[functions.generate-proposal]
+verify_jwt = false
+
+[functions.fill-contract-model]
+verify_jwt = false
+
+[functions.process-automation]
+verify_jwt = false
+
+[functions.resend-webhook]
+verify_jwt = false
