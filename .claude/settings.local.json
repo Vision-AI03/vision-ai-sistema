@@ -6,7 +6,9 @@
       "Bash(npm run:*)",
       "Bash(npx tsc:*)",
       "Bash(grep -r \"from ''date-fns/locale''\" src/pages/Reunioes.tsx src/pages/Propostas.tsx src/pages/Automacoes.tsx src/components/crm/NotasTab.tsx)",
-      "Bash(node -e \"require\\(''''./node_modules/date-fns/locale/index.js''''\\); console.log\\(''''OK''''\\)\")"
+      "Bash(node -e \"require\\(''''./node_modules/date-fns/locale/index.js''''\\); console.log\\(''''OK''''\\)\")",
+      "Bash(supabase functions:*)",
+      "Bash(supabase projects:*)"
     ]
   }
 }
