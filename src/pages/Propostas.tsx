@@ -317,9 +317,12 @@ export default function Propostas() {
                   </div>
                 ) : (
                   <ScrollArea className="h-[520px]">
-                    <div
-                      className="text-sm prose prose-sm max-w-none leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: `<p>${renderMarkdown(conteudoGerado)}</p>` }}
+                    <iframe
+                      srcDoc={conteudoGerado}
+                      className="w-full border-0 rounded"
+                      style={{ height: "500px" }}
+                      title="Preview da proposta"
+                      sandbox="allow-same-origin"
                     />
                   </ScrollArea>
                 )}
@@ -441,9 +444,12 @@ export default function Propostas() {
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Proposta Gerada</p>
                     {selectedProposta.conteudo_gerado ? (
-                      <div
-                        className="text-sm leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: `<p>${renderMarkdown(selectedProposta.conteudo_gerado)}</p>` }}
+                      <iframe
+                        srcDoc={selectedProposta.conteudo_gerado}
+                        className="w-full border border-border rounded-lg"
+                        style={{ height: "600px" }}
+                        title="Proposta gerada"
+                        sandbox="allow-same-origin"
                       />
                     ) : (
                       <p className="text-sm text-muted-foreground">Proposta não gerada.</p>

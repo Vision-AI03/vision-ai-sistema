@@ -80,86 +80,113 @@ Deno.serve(async (req) => {
 
   const tipoLabel = TIPO_SERVICO_LABELS[tipo_servico] || tipo_servico;
 
-  const prompt = `Você é especialista em propostas comerciais B2B de tecnologia da **Vision AI**, uma agência brasileira de inteligência artificial que entrega soluções de alto impacto para empresas.
+  const valorInfo = "A definir conforme escopo final";
 
-**Tipo de Solução:** ${tipoLabel}
+  const prompt = `Você é um especialista em criação de propostas comerciais visuais de alto impacto para agências de IA. Gere uma proposta comercial completa em HTML com design profissional, visual moderno e estrutura persuasiva.
 
-**Contexto do Cliente (fornecido pelo consultor):**
-${contexto_cliente}
-
+CONTEXTO RECEBIDO:
+- Tipo de serviço: ${tipoLabel}
+- Título: ${titulo || "Proposta Comercial Vision AI"}
+- Valor estimado: ${valorInfo}
+- Contexto do cliente: ${contexto_cliente}
+- Dados do prestador: Vision AI - Wesley Augusto Silva de Paula
 ${leadInfo}
 
-**Instruções:**
-Gere uma proposta comercial completa, profissional e persuasiva em português brasileiro. A proposta deve ser específica para este cliente — evite linguagem genérica. Use dados e contexto fornecidos para personalizar cada seção.
+ESTRUTURA OBRIGATÓRIA DA PROPOSTA (8 seções):
 
-A Vision AI é uma agência especializada em:
-- Agentes de IA com LLMs (GPT, Claude, Gemini) para automação de atendimento, vendas e operações
-- Automações inteligentes com n8n, Make e integrações via API
-- Sistemas personalizados com IA embarcada para resolver problemas específicos do negócio
+1. CAPA (hero section)
+- Fundo com gradiente azul escuro (#0f172a para #1e3a5f) ocupando 100% da largura
+- Logo/nome "VISION AI" em destaque no topo esquerdo
+- Título da proposta centralizado em branco, fonte grande (48px)
+- Subtítulo com o nome do cliente/empresa
+- Tagline motivacional relacionada ao serviço
 
-**Estrutura obrigatória (use markdown com headers ##):**
+2. DESAFIOS ATUAIS DO CLIENTE
+- Título da seção em azul escuro
+- Grid 2x2 com 4 cards de problemas que o cliente enfrenta
+- Cada card: ícone SVG simples, título em negrito, descrição curta
+- Fundo dos cards: branco com borda cinza suave e sombra leve
 
-## Proposta Comercial — [Nome da Empresa/Cliente]
+3. NOSSA SOLUÇÃO
+- Título da seção centralizado
+- Grid 2x2 com os 4 principais recursos/funcionalidades da solução
+- Cada card: ícone SVG colorido em azul (#3b82f6), título, descrição
+- Fundo levemente azulado (#f0f7ff)
 
-## 1. Resumo Executivo
-(2-3 parágrafos impactantes que sintetizam o problema e a solução)
+4. BENEFÍCIOS ESPECÍFICOS PARA O CLIENTE
+- Título personalizado com o nome do cliente/segmento
+- 4 benefícios em cards com ícones SVG
+- Métricas ou resultados esperados quando possível
+- Layout alternado: ícone à esquerda, texto à direita
 
-## 2. Entendimento do Cenário Atual
-(Descreva o problema ou oportunidade identificado de forma específica)
+5. PROCESSO DE IMPLEMENTAÇÃO
+- Timeline horizontal com 4 etapas numeradas
+- Linha conectando as etapas em azul
+- Cada etapa: número em círculo azul, título, descrição breve
+- Fundo branco
 
-## 3. Solução Proposta
-(Descreva a solução de forma detalhada e técnica mas acessível. Seja específico sobre o que será entregue)
+6. INVESTIMENTO
+- Apresentar o valor de forma clara e profissional
+- Mostrar o que está incluído em lista com checkmarks (✓) em verde
+- Destacar o ROI esperado ou payback estimado
+- Se possível, mostrar 2-3 opções/planos
+- Fundo azul escuro com texto branco para destacar
 
-## 4. Como Funciona — Metodologia
-(Explique o processo de trabalho, etapas e como será a parceria)
+7. PRÓXIMOS PASSOS
+- 3 passos numerados para fechar o negócio
+- Chamada para ação clara e urgente
+- Imagem ou visual de fundo profissional (use gradiente)
+- Botão/destaque com oferta especial se aplicável
 
-## 5. Cronograma de Entrega
-(Fases com estimativas de tempo. Exemplo: Semana 1-2: Discovery e mapeamento)
+8. RODAPÉ DE CONTATO
+- Dados da Vision AI: Wesley Augusto Silva de Paula
+- WhatsApp: (19) 99794-8118
+- Email: wesleyvisionai@gmail.com
+- Site: agenciavisionai.com
+- Fundo azul escuro
 
-## 6. Investimento
-(Apresente o valor de forma clara. Se não souber o valor exato, use faixas ou "a definir conforme escopo final")
+REGRAS TÉCNICAS OBRIGATÓRIAS DE DESIGN:
 
-## 7. O Que Está Incluído
-(Lista de entregáveis claros com bullet points)
+Paleta de cores:
+- Primária: #1e3a5f (azul escuro)
+- Secundária: #3b82f6 (azul médio)
+- Accent: #06b6d4 (ciano)
+- Texto: #1e293b
+- Fundo seções alternadas: #f8fafc e #f0f7ff
+- Destaques: #ffffff sobre fundo escuro
 
-## 8. Próximos Passos
-(CTA claro: o que acontece após aceitar esta proposta)
+Tipografia:
+- Font-family: 'Segoe UI', system-ui, sans-serif
+- H1: 48px bold, H2: 32px semibold, H3: 20px semibold
+- Body: 16px, line-height: 1.6
+- Cor títulos seções: #1e3a5f
 
-## 9. Sobre a Vision AI
-(Breve apresentação da agência, diferenciais e proposta de valor)
+Layout:
+- Largura máxima: 900px, centralizado com margin: 0 auto
+- Padding seções: 60px 40px
+- Border-radius cards: 12px
+- Box-shadow cards: 0 4px 6px rgba(0,0,0,0.07)
+- Gap grids: 24px
 
----
-*Proposta válida por 30 dias | Vision AI — Inteligência que transforma negócios*
+Ícones: Use SVGs inline simples (círculo, seta, check, robô, calendário, gráfico, chat, engrenagem, estrela, usuário) — sem dependências externas
 
 === REGRAS CRÍTICAS DE PAGINAÇÃO PARA PDF ===
-O HTML gerado será convertido para PDF com quebras de página automáticas. Siga estas regras obrigatórias no CSS:
+O HTML gerado será convertido para PDF com quebras de página automáticas.
+Inclua obrigatoriamente no <style>:
 
-1. Adicione no <style> do <head> estas regras globais:
-* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-h1, h2, h3, h4 { page-break-after: avoid !important; break-after: avoid !important; }
-img { page-break-inside: avoid !important; break-inside: avoid !important; max-width: 100% !important; }
-p, li { page-break-inside: avoid !important; break-inside: avoid !important; orphans: 3; widows: 3; }
-section, .section, .card, .feature-card, .problem-item, .step, .metric-card { page-break-inside: avoid !important; break-inside: avoid !important; }
-.hero, .header, .capa { page-break-after: avoid !important; break-after: avoid !important; }
-table { page-break-inside: avoid !important; break-inside: avoid !important; }
-tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-
-2. Todo elemento que contém imagem + texto juntos deve ter:
-style="page-break-inside: avoid; break-inside: avoid;"
-
-3. Cada seção principal deve ser uma <section> ou <div class="section"> com:
-style="page-break-inside: avoid; break-inside: avoid;"
-
-4. Imagens nunca devem ter height fixo maior que 350px.
-Use max-height: 350px; object-fit: cover; width: 100%;
-
-5. Entre seções use padding em vez de margin para espaçamento.
-
-6. O documento deve ter no CSS:
 @page { size: A4; margin: 0; }
 body { margin: 0; padding: 0; width: 210mm; }
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+h1, h2, h3, h4 { page-break-after: avoid !important; break-after: avoid !important; }
+img { page-break-inside: avoid !important; max-width: 100% !important; }
+p, li { page-break-inside: avoid !important; orphans: 3; widows: 3; }
+section, .section, .card { page-break-inside: avoid !important; break-inside: avoid !important; }
+.hero, .capa { page-break-after: avoid !important; }
+table, tr { page-break-inside: avoid !important; }
 
-Retorne APENAS o markdown da proposta, sem comentários adicionais.`;
+FORMATO DE SAÍDA:
+Retorne APENAS o HTML completo começando com <!DOCTYPE html> e terminando com </html>. Sem markdown, sem explicações, sem \`\`\`html. Apenas o HTML puro.
+O documento deve ter no mínimo 8 seções visuais bem definidas, ser persuasivo, profissional e específico para o nicho/serviço informado.`;
 
   try {
     const aiRes = await fetch(AI_GATEWAY_URL, {
