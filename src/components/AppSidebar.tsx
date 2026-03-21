@@ -1,4 +1,8 @@
-import { LayoutDashboard, Users, MessageSquare, FileText, DollarSign, LogOut, KeyRound, CheckSquare, DatabaseBackup, Webhook, BarChart2 } from "lucide-react";
+import {
+  LayoutDashboard, Users, MessageSquare, FileText, DollarSign, LogOut,
+  KeyRound, CheckSquare, DatabaseBackup, Webhook, BarChart2, Zap,
+  CalendarDays, ScrollText, BrainCircuit,
+} from "lucide-react";
 import logoVision from "@/assets/logo_vision_transparent_transparent.png";
 import { NavLink } from "@/components/NavLink";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +11,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -14,23 +19,36 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
-const items = [
+const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "CRM", url: "/crm", icon: Users },
   { title: "Comunicações", url: "/comunicacoes", icon: MessageSquare },
+  { title: "Propostas", url: "/propostas", icon: ScrollText },
   { title: "Contratos", url: "/contratos", icon: FileText },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign },
   { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
+  { title: "Reuniões", url: "/reunioes", icon: CalendarDays },
+];
+
+const analyticsItems = [
+  { title: "Métricas", url: "/metricas", icon: BrainCircuit },
   { title: "Relatórios", url: "/relatorios", icon: BarChart2 },
+];
+
+const configItems = [
+  { title: "Automações", url: "/configuracoes/automacoes", icon: Zap },
   { title: "Credenciais", url: "/configuracoes/credenciais", icon: KeyRound },
-  { title: "Backup", url: "/configuracoes/backup", icon: DatabaseBackup },
   { title: "Integrações", url: "/configuracoes/integracoes", icon: Webhook },
+  { title: "Backup", url: "/configuracoes/backup", icon: DatabaseBackup },
 ];
 
 export function AppSidebar() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
+
+  const linkClass = "hover:bg-sidebar-accent";
+  const activeLinkClass = "bg-sidebar-accent text-primary font-medium";
 
   return (
     <Sidebar>
@@ -44,10 +62,46 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end={item.url === "/"} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-primary font-medium">
+                    <NavLink to={item.url} end={item.url === "/"} className={linkClass} activeClassName={activeLinkClass}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] text-muted-foreground/60 uppercase tracking-wider px-2">Análise</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {analyticsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className={linkClass} activeClassName={activeLinkClass}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] text-muted-foreground/60 uppercase tracking-wider px-2">Configurações</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {configItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className={linkClass} activeClassName={activeLinkClass}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>

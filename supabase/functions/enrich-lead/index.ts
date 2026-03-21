@@ -319,6 +319,27 @@ Retorne APENAS o JSON, sem markdown.`;
       updateData.status = "enriquecido";
       updateData.atualizado_em = new Date().toISOString();
 
+      // Salvar dados brutos de enriquecimento
+      updateData.enriquecimento_data = new Date().toISOString();
+      updateData.enriquecimento_fontes = {
+        site: !!enrichmentData.site_markdown,
+        linkedin: !!enrichmentData.linkedin_profile,
+        instagram: !!enrichmentData.instagram_profile,
+      };
+      if (enrichmentData.site_markdown) {
+        updateData.enriquecimento_site_raw = {
+          title: enrichmentData.site_title,
+          description: enrichmentData.site_description,
+          markdown: String(enrichmentData.site_markdown).substring(0, 5000),
+        };
+      }
+      if (enrichmentData.linkedin_profile) {
+        updateData.enriquecimento_linkedin_raw = enrichmentData.linkedin_profile;
+      }
+      if (enrichmentData.instagram_profile) {
+        updateData.enriquecimento_instagram_raw = enrichmentData.instagram_profile;
+      }
+
       const { error: updateError } = await supabase
         .from("leads")
         .update(updateData)

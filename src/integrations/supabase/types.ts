@@ -820,6 +820,213 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_notas: {
+        Row: {
+          id: string
+          lead_id: string
+          user_id: string
+          conteudo: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          user_id: string
+          conteudo: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          user_id?: string
+          conteudo?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      automacoes_estagio: {
+        Row: {
+          id: string
+          user_id: string
+          estagio: string
+          ativo: boolean | null
+          criar_tarefa: boolean | null
+          tarefa_titulo: string | null
+          tarefa_descricao: string | null
+          tarefa_prazo_dias: number | null
+          tarefa_prioridade: string | null
+          criar_notificacao: boolean | null
+          notificacao_titulo: string | null
+          notificacao_descricao: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          estagio: string
+          ativo?: boolean | null
+          criar_tarefa?: boolean | null
+          tarefa_titulo?: string | null
+          tarefa_descricao?: string | null
+          tarefa_prazo_dias?: number | null
+          tarefa_prioridade?: string | null
+          criar_notificacao?: boolean | null
+          notificacao_titulo?: string | null
+          notificacao_descricao?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          estagio?: string
+          ativo?: boolean | null
+          criar_tarefa?: boolean | null
+          tarefa_titulo?: string | null
+          tarefa_descricao?: string | null
+          tarefa_prazo_dias?: number | null
+          tarefa_prioridade?: string | null
+          criar_notificacao?: boolean | null
+          notificacao_titulo?: string | null
+          notificacao_descricao?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      propostas: {
+        Row: {
+          id: string
+          user_id: string
+          lead_id: string | null
+          titulo: string
+          tipo_servico: string
+          contexto_cliente: string
+          conteudo_gerado: string | null
+          valor_estimado: number | null
+          validade_dias: number | null
+          status: string
+          enviada_em: string | null
+          versao: number | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          lead_id?: string | null
+          titulo: string
+          tipo_servico: string
+          contexto_cliente: string
+          conteudo_gerado?: string | null
+          valor_estimado?: number | null
+          validade_dias?: number | null
+          status?: string
+          enviada_em?: string | null
+          versao?: number | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          lead_id?: string | null
+          titulo?: string
+          tipo_servico?: string
+          contexto_cliente?: string
+          conteudo_gerado?: string | null
+          valor_estimado?: number | null
+          validade_dias?: number | null
+          status?: string
+          enviada_em?: string | null
+          versao?: number | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reunioes: {
+        Row: {
+          id: string
+          user_id: string
+          lead_id: string | null
+          titulo: string
+          descricao: string | null
+          data_hora_inicio: string
+          data_hora_fim: string | null
+          link_videoconferencia: string | null
+          local: string | null
+          status: string
+          notificacao_1h_enviada: boolean | null
+          notificacao_dia_enviada: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          lead_id?: string | null
+          titulo: string
+          descricao?: string | null
+          data_hora_inicio: string
+          data_hora_fim?: string | null
+          link_videoconferencia?: string | null
+          local?: string | null
+          status?: string
+          notificacao_1h_enviada?: boolean | null
+          notificacao_dia_enviada?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          lead_id?: string | null
+          titulo?: string
+          descricao?: string | null
+          data_hora_inicio?: string
+          data_hora_fim?: string | null
+          link_videoconferencia?: string | null
+          local?: string | null
+          status?: string
+          notificacao_1h_enviada?: boolean | null
+          notificacao_dia_enviada?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      resend_eventos: {
+        Row: {
+          id: string
+          resend_message_id: string
+          tipo: string
+          payload: Json | null
+          processado_em: string
+        }
+        Insert: {
+          id?: string
+          resend_message_id: string
+          tipo: string
+          payload?: Json | null
+          processado_em?: string
+        }
+        Update: {
+          id?: string
+          resend_message_id?: string
+          tipo?: string
+          payload?: Json | null
+          processado_em?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

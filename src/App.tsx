@@ -19,6 +19,10 @@ import Tarefas from "./pages/Tarefas";
 import Backup from "./pages/Backup";
 import Notificacoes from "./pages/Notificacoes";
 import Relatorios from "./pages/Relatorios";
+import Propostas from "./pages/Propostas";
+import Reunioes from "./pages/Reunioes";
+import Automacoes from "./pages/Automacoes";
+import Metricas from "./pages/Metricas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +64,10 @@ function AppRoutes() {
         <Route path="/contratos" element={<Contratos />} />
         <Route path="/financeiro" element={<Financeiro />} />
         <Route path="/tarefas" element={<Tarefas />} />
+        <Route path="/propostas" element={<Propostas />} />
+        <Route path="/reunioes" element={<Reunioes />} />
+        <Route path="/metricas" element={<Metricas />} />
+        <Route path="/configuracoes/automacoes" element={<Automacoes />} />
         <Route path="/configuracoes/credenciais" element={<Credenciais />} />
         <Route path="/configuracoes/backup" element={<Backup />} />
         <Route path="/configuracoes/integracoes" element={<Integracoes />} />

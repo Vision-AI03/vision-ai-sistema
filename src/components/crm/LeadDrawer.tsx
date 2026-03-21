@@ -1,13 +1,18 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, MailCheck, MessageSquare, CheckCheck, ExternalLink, Calendar, Building2, User, Globe, Linkedin, Sparkles, Loader2, Send, Trash2, Bot } from "lucide-react";
+import {
+  Mail, MailCheck, MessageSquare, CheckCheck, ExternalLink, Calendar,
+  Building2, User, Globe, Linkedin, Loader2, Send, Trash2, StickyNote, Database,
+  CheckCircle2, MousePointerClick, AlertCircle,
+} from "lucide-react";
 import { WhatsAppTab } from "@/components/crm/WhatsAppTab";
+import { NotasTab } from "@/components/crm/NotasTab";
+import { EnriquecimentoTab } from "@/components/crm/EnriquecimentoTab";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -19,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Lead = Tables<"leads">;
+type Comunicacao = Tables<"comunicacoes">;
 
 const COLUNAS = [
   { value: "novo", label: "Novo" },
@@ -35,6 +41,14 @@ function getScoreColor(score: number | null) {
   return "bg-destructive/20 text-destructive";
 }
 
+function getEmailStatusIcon(status: string | null) {
+  if (status === "aberto") return <MailCheck className="h-3 w-3 text-success" />;
+  if (status === "clicado") return <MousePointerClick className="h-3 w-3 text-primary" />;
+  if (status === "bounced") return <AlertCircle className="h-3 w-3 text-destructive" />;
+  if (status === "entregue") return <CheckCircle2 className="h-3 w-3 text-muted-foreground" />;
+  return null;
+}
+
 interface LeadDrawerProps {
   lead: Lead | null;
   open: boolean;
@@ -45,9 +59,7 @@ interface LeadDrawerProps {
 }
 
 export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLeadUpdate, onLeadDelete }: LeadDrawerProps) {
-  const [anotacoes, setAnotacoes] = useState("");
-  const [comunicacoes, setComunicacoes] = useState<Tables<"comunicacoes">[]>([]);
-  const [enriching, setEnriching] = useState(false);
+  const [comunicacoes, setComunicacoes] = useState<Comunicacao[]>([]);
   const [generatingEmail, setGeneratingEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState<{ assunto: string; conteudo: string } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -56,7 +68,6 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
 
   useEffect(() => {
     if (lead) {
-      setAnotacoes(lead.mensagem_original || "");
       setEmailDraft(null);
       fetchComunicacoes(lead.id);
     }
@@ -68,12 +79,7 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
       .select("*")
       .eq("lead_id", leadId)
       .order("criado_em", { ascending: false });
-    setComunicacoes(data || []);
-  }
-
-  async function salvarAnotacoes() {
-    if (!lead) return;
-    await supabase.from("leads").update({ mensagem_original: anotacoes }).eq("id", lead.id);
+    setComunicacoes((data || []) as Comunicacao[]);
   }
 
   async function handleDeleteLead() {
@@ -90,36 +96,6 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
     setDeleting(false);
   }
 
-  async function handleEnrichLead() {
-    if (!lead) return;
-    setEnriching(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("enrich-lead", {
-        body: { lead_id: lead.id },
-      });
-      if (error || data?.error) {
-        toast({ title: "Erro no enriquecimento", description: error?.message || data?.error, variant: "destructive" });
-      } else {
-        toast({
-          title: "Lead enriquecido com sucesso!",
-          description: `Site: ${data.sources?.site_scraped ? "✓" : "✗"} | Busca: ${data.sources?.search_done ? "✓" : "✗"} | LinkedIn: ${data.sources?.linkedin_scraped ? "✓" : "✗"} | Instagram: ${data.sources?.instagram_scraped ? "✓" : "✗"}`,
-        });
-        // Fetch updated lead data from DB and propagate
-        const { data: updatedLead } = await supabase
-          .from("leads")
-          .select("*")
-          .eq("id", lead.id)
-          .maybeSingle();
-        if (updatedLead && onLeadUpdate) {
-          onLeadUpdate(updatedLead);
-        }
-      }
-    } catch (e) {
-      toast({ title: "Erro ao enriquecer lead", variant: "destructive" });
-    }
-    setEnriching(false);
-  }
-
   async function handleGenerateEmail() {
     if (!lead) return;
     setGeneratingEmail(true);
@@ -133,7 +109,7 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
         setEmailDraft(data.data);
         toast({ title: "Rascunho de email gerado!" });
       }
-    } catch (e) {
+    } catch {
       toast({ title: "Erro ao gerar email", variant: "destructive" });
     }
     setGeneratingEmail(false);
@@ -164,10 +140,12 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
     if (error || data?.error) {
       toast({ title: "Erro ao enviar", description: error?.message || data?.error, variant: "destructive" });
     } else {
+      // Salva resend_id para tracking
       await supabase.from("comunicacoes").insert({
         lead_id: lead.id, tipo: "email", direcao: "enviado",
         assunto: emailDraft.assunto, conteudo: emailDraft.conteudo, status: "enviado",
-      });
+        resend_message_id: data?.resend_id || null,
+      } as any);
       await supabase.from("leads").update({
         email_enviado: true, data_email_enviado: new Date().toISOString(),
       }).eq("id", lead.id);
@@ -223,43 +201,6 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
 
             <Separator />
 
-            {/* AI Analysis */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Análise da IA</h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <DataBadge label="Segmento" value={lead.segmento} />
-                <DataBadge label="Porte" value={lead.porte_empresa} />
-                <DataBadge label="Maturidade Digital" value={lead.nivel_maturidade_digital} />
-                <DataBadge label="Prioridade" value={lead.prioridade_contato} />
-              </div>
-              {lead.dores_identificadas && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Dores Identificadas</p>
-                  <p className="text-xs bg-secondary/50 p-2 rounded">{lead.dores_identificadas}</p>
-                </div>
-              )}
-              {lead.oportunidades && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Oportunidades</p>
-                  <p className="text-xs bg-secondary/50 p-2 rounded">{lead.oportunidades}</p>
-                </div>
-              )}
-              {lead.motivo_score && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Motivo do Score</p>
-                  <p className="text-xs bg-secondary/50 p-2 rounded">{lead.motivo_score}</p>
-                </div>
-              )}
-              {lead.resumo_empresa && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Resumo da Empresa</p>
-                  <p className="text-xs bg-secondary/50 p-2 rounded">{lead.resumo_empresa}</p>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
             {/* Interaction indicators */}
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Status de Interação</h4>
@@ -287,33 +228,20 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
 
             <Separator />
 
-            {/* Actions: Enrich + Generate Email */}
+            {/* Generate Email */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Ações Automáticas</h4>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleEnrichLead}
-                  disabled={enriching}
-                  className="gap-1.5 text-xs"
-                >
-                  {enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  {enriching ? "Enriquecendo..." : "Enriquecer com IA"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleGenerateEmail}
-                  disabled={generatingEmail}
-                  className="gap-1.5 text-xs"
-                >
-                  {generatingEmail ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
-                  {generatingEmail ? "Gerando..." : "Gerar Email com IA"}
-                </Button>
-              </div>
+              <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Ações</h4>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGenerateEmail}
+                disabled={generatingEmail}
+                className="gap-1.5 text-xs"
+              >
+                {generatingEmail ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+                {generatingEmail ? "Gerando..." : "Gerar Email com IA"}
+              </Button>
 
-              {/* Email Draft - Editable */}
               {emailDraft && (
                 <div className="rounded-lg border border-primary/30 overflow-hidden mt-2">
                   <div className="bg-primary/10 px-3 py-2 flex items-center justify-between">
@@ -359,19 +287,25 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
 
             <Separator />
 
-            {/* Interactions + WhatsApp tabs */}
+            {/* 4 abas: Timeline, WhatsApp, Notas, Enriquecimento */}
             <Tabs defaultValue="timeline" className="w-full">
-              <TabsList className="w-full bg-secondary/50 h-8">
-                <TabsTrigger value="timeline" className="flex-1 text-xs h-7">
+              <TabsList className="w-full bg-secondary/50 h-8 grid grid-cols-4">
+                <TabsTrigger value="timeline" className="text-[10px] h-7 px-1">
                   <Mail className="h-3 w-3 mr-1" /> Timeline
                 </TabsTrigger>
-                <TabsTrigger value="whatsapp" className="flex-1 text-xs h-7">
+                <TabsTrigger value="whatsapp" className="text-[10px] h-7 px-1">
                   <MessageSquare className="h-3 w-3 mr-1" /> WhatsApp
                   {(lead as any).total_mensagens_whatsapp > 0 && (
-                    <Badge className="ml-1 text-[9px] h-4 px-1 bg-primary/20 text-primary">
+                    <Badge className="ml-1 text-[9px] h-3.5 px-0.5 bg-primary/20 text-primary">
                       {(lead as any).total_mensagens_whatsapp}
                     </Badge>
                   )}
+                </TabsTrigger>
+                <TabsTrigger value="notas" className="text-[10px] h-7 px-1">
+                  <StickyNote className="h-3 w-3 mr-1" /> Notas
+                </TabsTrigger>
+                <TabsTrigger value="enriquecimento" className="text-[10px] h-7 px-1">
+                  <Database className="h-3 w-3 mr-1" /> Dados
                 </TabsTrigger>
               </TabsList>
 
@@ -380,16 +314,31 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
                   <p className="text-xs text-muted-foreground">Nenhuma interação registrada.</p>
                 ) : (
                   <div className="space-y-2">
-                    {comunicacoes.map(c => (
-                      <div key={c.id} className="bg-secondary/30 rounded p-2 text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-[10px]">{c.tipo} — {c.direcao}</Badge>
-                          <span className="text-muted-foreground">{format(new Date(c.criado_em), "dd/MM HH:mm")}</span>
+                    {comunicacoes.map(c => {
+                      const com = c as any;
+                      return (
+                        <div key={c.id} className="bg-secondary/30 rounded p-2 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className="text-[10px]">{c.tipo} — {c.direcao}</Badge>
+                              {c.tipo === "email" && getEmailStatusIcon(c.status)}
+                              {c.status && (
+                                <span className="text-[10px] text-muted-foreground capitalize">{c.status}</span>
+                              )}
+                            </div>
+                            <span className="text-muted-foreground">{format(new Date(c.criado_em), "dd/MM HH:mm")}</span>
+                          </div>
+                          {c.assunto && <p className="font-medium">{c.assunto}</p>}
+                          {c.conteudo && <p className="text-muted-foreground line-clamp-2">{c.conteudo}</p>}
+                          {com.aberto_em && (
+                            <p className="text-[10px] text-success">Aberto em {format(new Date(com.aberto_em), "dd/MM HH:mm")}</p>
+                          )}
+                          {com.clicado_em && (
+                            <p className="text-[10px] text-primary">Clicado em {format(new Date(com.clicado_em), "dd/MM HH:mm")}</p>
+                          )}
                         </div>
-                        {c.assunto && <p className="font-medium">{c.assunto}</p>}
-                        {c.conteudo && <p className="text-muted-foreground line-clamp-2">{c.conteudo}</p>}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
@@ -400,23 +349,15 @@ export default function LeadDrawer({ lead, open, onClose, onStatusChange, onLead
                   estagioFonte={(lead as any).estagio_fonte}
                 />
               </TabsContent>
+
+              <TabsContent value="notas" className="mt-3">
+                <NotasTab leadId={lead.id} />
+              </TabsContent>
+
+              <TabsContent value="enriquecimento" className="mt-3">
+                <EnriquecimentoTab lead={lead} onLeadUpdate={onLeadUpdate} />
+              </TabsContent>
             </Tabs>
-
-            <Separator />
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Anotações Internas</h4>
-              <Textarea
-                value={anotacoes}
-                onChange={(e) => setAnotacoes(e.target.value)}
-                placeholder="Adicione anotações sobre este lead..."
-                className="text-sm min-h-[80px] bg-secondary/30"
-              />
-              <Button size="sm" onClick={salvarAnotacoes} className="gradient-primary text-primary-foreground">
-                Salvar Anotações
-              </Button>
-            </div>
 
             <Separator />
 
@@ -462,16 +403,6 @@ function InfoRow({ icon, label, value, link }: { icon: React.ReactNode; label: s
           </a>
         ) : value}
       </span>
-    </div>
-  );
-}
-
-function DataBadge({ label, value }: { label: string; value: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="bg-secondary/50 rounded p-2">
-      <p className="text-muted-foreground text-[10px]">{label}</p>
-      <p className="font-medium capitalize">{value}</p>
     </div>
   );
 }

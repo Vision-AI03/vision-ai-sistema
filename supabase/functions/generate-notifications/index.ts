@@ -181,6 +181,67 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 7. Reuniões próximas (dentro de 1 hora)
+    const oneHourFromNow = new Date(now.getTime() + 3600000).toISOString();
+    const { data: reunioesProximas } = await supabaseAdmin
+      .from("reunioes")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "agendada")
+      .eq("notificacao_1h_enviada", false)
+      .gte("data_hora_inicio", now.toISOString())
+      .lte("data_hora_inicio", oneHourFromNow);
+
+    for (const r of reunioesProximas || []) {
+      const horario = new Date(r.data_hora_inicio).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      notifications.push({
+        user_id: userId,
+        tipo: "reuniao_proxima",
+        titulo: `Reunião em 1 hora: ${r.titulo}`,
+        descricao: `Início às ${horario}${r.local ? ` — ${r.local}` : ""}`,
+        link: "/reunioes",
+        metadata: { reuniao_id: r.id },
+      });
+      await supabaseAdmin
+        .from("reunioes")
+        .update({ notificacao_1h_enviada: true })
+        .eq("id", r.id);
+    }
+
+    // 8. Reuniões hoje (notificação matinal — ainda não enviada, início após agora)
+    const startOfTomorrow = new Date(now);
+    startOfTomorrow.setHours(23, 59, 59, 999);
+    const { data: reunioesHoje } = await supabaseAdmin
+      .from("reunioes")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "agendada")
+      .eq("notificacao_dia_enviada", false)
+      .gte("data_hora_inicio", now.toISOString())
+      .lte("data_hora_inicio", startOfTomorrow.toISOString());
+
+    for (const r of reunioesHoje || []) {
+      const horario = new Date(r.data_hora_inicio).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      notifications.push({
+        user_id: userId,
+        tipo: "reuniao_hoje",
+        titulo: `Reunião hoje às ${horario}: ${r.titulo}`,
+        descricao: r.local || r.link_videoconferencia || "",
+        link: "/reunioes",
+        metadata: { reuniao_id: r.id },
+      });
+      await supabaseAdmin
+        .from("reunioes")
+        .update({ notificacao_dia_enviada: true })
+        .eq("id", r.id);
+    }
+
     // Clean up stale notifications referencing deleted entities
     // Delete notifications about leads that no longer exist
     const { data: allLeadNotifs } = await supabaseAdmin

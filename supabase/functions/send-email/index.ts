@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ success: true, id: resendData.id }), {
+  return new Response(JSON.stringify({ success: true, id: resendData.id, resend_id: resendData.id }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

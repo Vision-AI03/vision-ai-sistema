@@ -88,7 +88,15 @@ export default function CRM() {
     // Optimistic update
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus! } : l));
 
-    await supabase.from("leads").update({ status: newStatus }).eq("id", leadId);
+    await supabase.from("leads").update({ status: newStatus, status_mudou_em: new Date().toISOString() }).eq("id", leadId);
+
+    // Dispara automação se configurada para o novo estágio
+    const movedLead = leads.find(l => l.id === leadId);
+    if (movedLead) {
+      supabase.functions.invoke("process-automation", {
+        body: { lead_id: leadId, novo_status: newStatus, lead_nome: movedLead.nome },
+      }).catch(() => {});
+    }
   }
 
   function handleDragOver(event: DragOverEvent) {
@@ -101,9 +109,17 @@ export default function CRM() {
   }
 
   async function handleStatusChange(leadId: string, newStatus: string) {
+    const currentLead = leads.find(l => l.id === leadId);
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
     setDrawerLead(prev => prev && prev.id === leadId ? { ...prev, status: newStatus } : prev);
-    await supabase.from("leads").update({ status: newStatus }).eq("id", leadId);
+    await supabase.from("leads").update({ status: newStatus, status_mudou_em: new Date().toISOString() }).eq("id", leadId);
+
+    // Dispara automação se configurada para o novo estágio
+    if (currentLead) {
+      supabase.functions.invoke("process-automation", {
+        body: { lead_id: leadId, novo_status: newStatus, lead_nome: currentLead.nome },
+      }).catch(() => {});
+    }
   }
 
   function handleLeadUpdate(updatedLead: Lead) {
