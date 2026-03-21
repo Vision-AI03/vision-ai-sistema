@@ -10,15 +10,15 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
-import { Separator } from "@/components/ui/separator";
 import {
   CalendarDays, Plus, Loader2, Clock, MapPin, Link2, User,
   CheckCircle2, XCircle, Edit2, Trash2,
 } from "lucide-react";
-import { format, isSameDay, parseISO, isAfter, isBefore, addHours } from "date-fns";
+import { format, isSameDay, parseISO, isAfter, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { DayContentProps } from "react-day-picker";
 
 interface Reuniao {
   id: string;
@@ -38,10 +38,10 @@ interface Lead {
   empresa: string | null;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  agendada: { label: "Agendada", color: "bg-primary/20 text-primary" },
-  realizada: { label: "Realizada", color: "bg-success/20 text-success" },
-  cancelada: { label: "Cancelada", color: "bg-destructive/20 text-destructive" },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bar: string }> = {
+  agendada: { label: "Agendada", color: "bg-primary/20 text-primary", bar: "bg-primary" },
+  realizada: { label: "Realizada", color: "bg-success/20 text-success", bar: "bg-success" },
+  cancelada: { label: "Cancelada", color: "bg-destructive/20 text-destructive", bar: "bg-destructive" },
 };
 
 const DEFAULT_FORM = {
@@ -91,16 +91,8 @@ export default function Reunioes() {
     isSameDay(parseISO(r.data_hora_inicio), selectedDate)
   );
 
-  // Dias com reunião para marcar no calendário
-  const diasComReuniao = reunioes
-    .filter(r => r.status === "agendada")
-    .map(r => parseISO(r.data_hora_inicio));
-
   function openNew() {
-    setForm({
-      ...DEFAULT_FORM,
-      data: format(selectedDate, "yyyy-MM-dd"),
-    });
+    setForm({ ...DEFAULT_FORM, data: format(selectedDate, "yyyy-MM-dd") });
     setEditingId(null);
     setDialogOpen(true);
   }
@@ -131,15 +123,12 @@ export default function Reunioes() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const dataInicio = `${form.data}T${form.hora_inicio}:00`;
-    const dataFim = `${form.data}T${form.hora_fim}:00`;
-
     const payload = {
       user_id: user.id,
       titulo: form.titulo.trim(),
       descricao: form.descricao || null,
-      data_hora_inicio: dataInicio,
-      data_hora_fim: dataFim,
+      data_hora_inicio: `${form.data}T${form.hora_inicio}:00`,
+      data_hora_fim: `${form.data}T${form.hora_fim}:00`,
       link_videoconferencia: form.link_videoconferencia || null,
       local: form.local || null,
       lead_id: form.lead_id !== "none" ? form.lead_id : null,
@@ -180,15 +169,40 @@ export default function Reunioes() {
     setForm(prev => ({ ...prev, [key]: val }));
   }
 
-  const hoje = reunioes.filter(r => {
-    const dt = parseISO(r.data_hora_inicio);
-    return isSameDay(dt, new Date()) && r.status === "agendada";
-  });
+  const hoje = reunioes.filter(r =>
+    isSameDay(parseISO(r.data_hora_inicio), new Date()) && r.status === "agendada"
+  );
 
-  const proximas = reunioes.filter(r => {
-    const dt = parseISO(r.data_hora_inicio);
-    return isAfter(dt, addHours(new Date(), 1)) && r.status === "agendada";
-  }).slice(0, 5);
+  const proximas = reunioes.filter(r =>
+    isAfter(parseISO(r.data_hora_inicio), addHours(new Date(), 1)) && r.status === "agendada"
+  ).slice(0, 4);
+
+  // Custom day content with colored event bars
+  function CustomDayContent({ date }: DayContentProps) {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const dayReunioes = reunioes.filter(r => r.data_hora_inicio.startsWith(dateStr));
+
+    return (
+      <div className="flex flex-col items-center w-full">
+        <span>{date.getDate()}</span>
+        {dayReunioes.length > 0 && (
+          <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
+            {dayReunioes.slice(0, 3).map(r => {
+              const bar = STATUS_CONFIG[r.status]?.bar || "bg-primary";
+              return (
+                <div
+                  key={r.id}
+                  className={`h-1 rounded-full ${bar}`}
+                  style={{ width: dayReunioes.length === 1 ? "16px" : "6px" }}
+                  title={r.titulo}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -225,8 +239,9 @@ export default function Reunioes() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
-        {/* Calendário */}
+      {/* 40/60 split layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4 items-start">
+        {/* Left panel — Calendar (40%) */}
         <div className="space-y-3">
           <Card>
             <CardContent className="p-3">
@@ -235,9 +250,8 @@ export default function Reunioes() {
                 selected={selectedDate}
                 onSelect={(d) => d && setSelectedDate(d)}
                 locale={ptBR}
-                className="rounded-md"
-                modifiers={{ reuniao: diasComReuniao }}
-                modifiersClassNames={{ reuniao: "bg-primary/20 text-primary font-semibold rounded-full" }}
+                className="rounded-md w-full"
+                components={{ DayContent: CustomDayContent }}
               />
             </CardContent>
           </Card>
@@ -249,10 +263,12 @@ export default function Reunioes() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Próximas</p>
                 {proximas.map(r => (
                   <div key={r.id} className="flex items-center gap-2 text-xs">
-                    <CalendarDays className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    <div className={`h-2 w-2 rounded-full flex-shrink-0 ${STATUS_CONFIG[r.status]?.bar || "bg-primary"}`} />
                     <div className="min-w-0">
                       <p className="font-medium truncate">{r.titulo}</p>
-                      <p className="text-muted-foreground">{format(parseISO(r.data_hora_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}</p>
+                      <p className="text-muted-foreground">
+                        {format(parseISO(r.data_hora_inicio), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -261,15 +277,17 @@ export default function Reunioes() {
           )}
         </div>
 
-        {/* Reuniões do dia */}
+        {/* Right panel — Day events (60%) */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-muted-foreground">
               {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
             </h2>
-            <Button size="sm" variant="outline" onClick={openNew} className="h-7 text-xs gap-1">
-              <Plus className="h-3 w-3" /> Agendar
-            </Button>
+            {reunioesNoDia.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {reunioesNoDia.length} reunião{reunioesNoDia.length > 1 ? "ões" : ""}
+              </Badge>
+            )}
           </div>
 
           {loading ? (
@@ -277,12 +295,10 @@ export default function Reunioes() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : reunioesNoDia.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="text-center py-16 text-muted-foreground">
               <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">Nenhuma reunião neste dia</p>
-              <Button size="sm" variant="outline" className="mt-3 text-xs" onClick={openNew}>
-                Agendar reunião
-              </Button>
+              <p className="text-xs mt-1">Clique em "Nova Reunião" para agendar</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -292,11 +308,14 @@ export default function Reunioes() {
                   const lead = leads.find(l => l.id === r.lead_id);
                   const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.agendada;
                   return (
-                    <Card key={r.id} className="hover:border-border/80 transition-colors">
+                    <Card key={r.id} className={`hover:border-border/80 transition-colors border-l-4 ${
+                      r.status === "agendada" ? "border-l-primary" :
+                      r.status === "realizada" ? "border-l-success" : "border-l-destructive"
+                    }`}>
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                               <span className="text-sm font-semibold">
                                 {format(parseISO(r.data_hora_inicio), "HH:mm")}
@@ -310,7 +329,8 @@ export default function Reunioes() {
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(r)}>
                               <Edit2 className="h-3 w-3" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(r.id)}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(r.id)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -343,11 +363,13 @@ export default function Reunioes() {
 
                         {r.status === "agendada" && (
                           <div className="flex gap-2 pt-1">
-                            <Button size="sm" variant="outline" className="h-6 text-xs gap-1 text-success border-success/30 hover:bg-success/10"
+                            <Button size="sm" variant="outline"
+                              className="h-6 text-xs gap-1 text-success border-success/30 hover:bg-success/10"
                               onClick={() => handleStatus(r.id, "realizada")}>
                               <CheckCircle2 className="h-3 w-3" /> Realizada
                             </Button>
-                            <Button size="sm" variant="outline" className="h-6 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                            <Button size="sm" variant="outline"
+                              className="h-6 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
                               onClick={() => handleStatus(r.id, "cancelada")}>
                               <XCircle className="h-3 w-3" /> Cancelar
                             </Button>
@@ -364,14 +386,19 @@ export default function Reunioes() {
 
       {/* Dialog nova/editar reunião */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>{editingId ? "Editar Reunião" : "Nova Reunião"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
             <div className="space-y-1.5">
               <Label className="text-xs">Título <span className="text-destructive">*</span></Label>
-              <Input value={form.titulo} onChange={e => updateForm("titulo", e.target.value)} placeholder="Ex: Reunião de Discovery — Empresa XYZ" />
+              <Input
+                value={form.titulo}
+                onChange={e => updateForm("titulo", e.target.value)}
+                placeholder="Ex: Reunião de Discovery — Empresa XYZ"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -420,23 +447,38 @@ export default function Reunioes() {
 
             <div className="space-y-1.5">
               <Label className="text-xs">Link de Videoconferência</Label>
-              <Input value={form.link_videoconferencia} onChange={e => updateForm("link_videoconferencia", e.target.value)} placeholder="https://meet.google.com/..." />
+              <Input
+                value={form.link_videoconferencia}
+                onChange={e => updateForm("link_videoconferencia", e.target.value)}
+                placeholder="https://meet.google.com/..."
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Local</Label>
-              <Input value={form.local} onChange={e => updateForm("local", e.target.value)} placeholder="Sala A, escritório, etc." />
+              <Input
+                value={form.local}
+                onChange={e => updateForm("local", e.target.value)}
+                placeholder="Sala A, escritório, etc."
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Descrição / Pauta</Label>
-              <Textarea value={form.descricao} onChange={e => updateForm("descricao", e.target.value)} placeholder="Objetivos da reunião, pauta..." className="resize-none" rows={3} />
+              <Textarea
+                value={form.descricao}
+                onChange={e => updateForm("descricao", e.target.value)}
+                placeholder="Objetivos da reunião, pauta..."
+                className="resize-none"
+                rows={3}
+              />
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="flex-shrink-0 pt-3 border-t border-border mt-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving} className="gradient-primary text-primary-foreground">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingId ? "Salvar Alterações" : "Agendar Reunião"}
             </Button>
           </DialogFooter>

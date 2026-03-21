@@ -678,26 +678,36 @@ export default function Financeiro() {
               {transacoesFiltradas.length === 0 ? (
                 <Card className="glass-card"><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma conta encontrada.</CardContent></Card>
               ) : (
-                <Card className="glass-card overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead>Método</TableHead><TableHead className="text-right">Valor</TableHead></TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {transacoesFiltradas.slice(0, 50).map(t => (
-                        <TableRow key={t.id}>
-                          <TableCell className="text-xs">{format(new Date(t.data + "T00:00:00"), "dd/MM/yy")}</TableCell>
-                          <TableCell className="text-sm font-medium">{t.descricao}</TableCell>
-                          <TableCell><Badge variant="outline" className="text-[10px]">{t.categoria}</Badge></TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{t.metodo_pagamento || "—"}</TableCell>
-                          <TableCell className="text-right font-bold text-sm text-destructive">
-                            -{formatCurrency(Number(t.valor))}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
+                <>
+                  <Card className="glass-card overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead>Método</TableHead><TableHead className="text-right">Valor</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transacoesFiltradas.slice(0, 50).map(t => (
+                          <TableRow key={t.id}>
+                            <TableCell className="text-xs">{format(new Date(t.data + "T00:00:00"), "dd/MM/yy")}</TableCell>
+                            <TableCell className="text-sm font-medium">{t.descricao}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px]">{t.categoria}</Badge></TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{t.metodo_pagamento || "—"}</TableCell>
+                            <TableCell className="text-right font-bold text-sm text-destructive">
+                              -{formatCurrency(Number(t.valor))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                  <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-secondary/30">
+                    <span className="text-sm text-muted-foreground">
+                      Total ({transacoesFiltradas.length} {transacoesFiltradas.length === 1 ? "item" : "itens"}{filtroTipo !== "todos" || filtroCategoria !== "todos" || filtroMetodo !== "todos" ? " filtrados" : ""})
+                    </span>
+                    <span className="text-base font-bold text-destructive">
+                      -{formatCurrency(transacoesFiltradas.reduce((s, t) => s + Number(t.valor), 0))}
+                    </span>
+                  </div>
+                </>
               )}
             </TabsContent>
 
@@ -809,6 +819,7 @@ function CustosSection({ custos, totalCusto, novoCustoOpen, setNovoCustoOpen, cu
       {custos.length === 0 ? (
         <Card className="glass-card"><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhum custo cadastrado.</CardContent></Card>
       ) : (
+        <div className="space-y-3">
         <div className="grid gap-3">
           {custos.map((c: any) => (
             <Card key={c.id} className="glass-card">
@@ -893,6 +904,15 @@ function CustosSection({ custos, totalCusto, novoCustoOpen, setNovoCustoOpen, cu
               </CardContent>
             </Card>
           ))}
+        </div>
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-secondary/30">
+          <span className="text-sm text-muted-foreground">
+            Total mensal ({custos.filter((c: any) => c.ativo).length} ativos)
+          </span>
+          <span className="text-base font-bold text-destructive">
+            -{formatCurrency(totalCusto)}
+          </span>
+        </div>
         </div>
       )}
     </>

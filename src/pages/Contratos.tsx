@@ -8,14 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plus, FileText, Upload, Sparkles, Loader2, LayoutTemplate, MessageSquareText, Files } from "lucide-react";
+import { Plus, FileText, Upload, Sparkles, Loader2, FolderOpen, Wand2, Files } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMonths } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import ContratoDrawer from "@/components/contratos/ContratoDrawer";
-import TemplatesTab from "@/components/contratos/TemplatesTab";
-import GerarContratoTab from "@/components/contratos/GerarContratoTab";
-import ContratosGeradosTab from "@/components/contratos/ContratosGeradosTab";
+import ModelosTab from "@/components/contratos/ModelosTab";
+import PreencherContratoTab from "@/components/contratos/PreencherContratoTab";
+import ContratosPreenchidosTab from "@/components/contratos/ContratosPreenchidosTab";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contrato = Tables<"contratos">;
@@ -42,18 +42,16 @@ const TIPO_SERVICO_LABELS: Record<string, string> = {
 
 export default function Contratos() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
+  const [modelos, setModelos] = useState<any[]>([]);
+  const [contratosPreenchidos, setContratosPreenchidos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [novoOpen, setNovoOpen] = useState(false);
   const [drawerContrato, setDrawerContrato] = useState<Contrato | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("existentes");
+  const [activeTab, setActiveTab] = useState("contratos");
   const { toast } = useToast();
 
-  // Templates & generated contracts state
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [contratosGerados, setContratosGerados] = useState<any[]>([]);
-
-  // Form state for legacy contracts
+  // Form state for manual contracts
   const [clienteNome, setClienteNome] = useState("");
   const [clienteEmail, setClienteEmail] = useState("");
   const [clienteTelefone, setClienteTelefone] = useState("");
@@ -73,14 +71,17 @@ export default function Contratos() {
 
   async function fetchAll() {
     setLoading(true);
-    const [cRes, tRes, gRes] = await Promise.all([
+    const [cRes, mRes, pRes] = await Promise.all([
       supabase.from("contratos").select("*").order("criado_em", { ascending: false }),
-      supabase.from("contrato_templates").select("*").order("created_at", { ascending: false }),
-      supabase.from("contratos_gerados").select("*").order("created_at", { ascending: false }),
+      supabase.from("modelo_contratos").select("*").order("created_at", { ascending: false }),
+      supabase
+        .from("contratos_preenchidos")
+        .select("*, modelo_contratos(nome)")
+        .order("created_at", { ascending: false }),
     ]);
     setContratos(cRes.data || []);
-    setTemplates((tRes.data as any[]) || []);
-    setContratosGerados((gRes.data as any[]) || []);
+    setModelos((mRes.data as any[]) || []);
+    setContratosPreenchidos((pRes.data as any[]) || []);
     setLoading(false);
   }
 
@@ -191,34 +192,35 @@ export default function Contratos() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Propostas & Contratos</h1>
-        <p className="text-sm text-muted-foreground">Gerencie templates, gere contratos com IA e acompanhe propostas.</p>
+        <h1 className="text-2xl font-bold">Contratos</h1>
+        <p className="text-sm text-muted-foreground">Gerencie contratos, modelos e utilize IA para preencher automaticamente.</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="existentes" className="gap-2">
+          <TabsTrigger value="contratos" className="gap-2">
             <FileText className="h-4 w-4" />
             Contratos
             {contratos.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{contratos.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-2">
-            <LayoutTemplate className="h-4 w-4" />
-            Templates
+          <TabsTrigger value="modelos" className="gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Modelos
+            {modelos.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{modelos.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="gerar" className="gap-2">
-            <MessageSquareText className="h-4 w-4" />
-            Gerar com IA
+          <TabsTrigger value="preencher" className="gap-2">
+            <Wand2 className="h-4 w-4" />
+            Preencher com IA
           </TabsTrigger>
-          <TabsTrigger value="gerados" className="gap-2">
+          <TabsTrigger value="preenchidos" className="gap-2">
             <Files className="h-4 w-4" />
-            Gerados
-            {contratosGerados.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{contratosGerados.length}</Badge>}
+            Preenchidos
+            {contratosPreenchidos.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{contratosPreenchidos.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
-        {/* Existing contracts tab (legacy) */}
-        <TabsContent value="existentes">
+        {/* Contratos (manual/legacy) */}
+        <TabsContent value="contratos">
           <div className="space-y-4">
             <div className="flex justify-end">
               <Dialog open={novoOpen} onOpenChange={setNovoOpen}>
@@ -307,16 +309,22 @@ export default function Contratos() {
           </div>
         </TabsContent>
 
-        <TabsContent value="templates">
-          <TemplatesTab templates={templates} onRefresh={fetchAll} />
+        {/* Modelos */}
+        <TabsContent value="modelos">
+          <ModelosTab modelos={modelos} onRefresh={fetchAll} />
         </TabsContent>
 
-        <TabsContent value="gerar">
-          <GerarContratoTab templates={templates} onContratoGerado={() => { fetchAll(); setActiveTab("gerados"); }} />
+        {/* Preencher com IA */}
+        <TabsContent value="preencher">
+          <PreencherContratoTab
+            modelos={modelos}
+            onContratoCriado={() => { fetchAll(); setActiveTab("preenchidos"); }}
+          />
         </TabsContent>
 
-        <TabsContent value="gerados">
-          <ContratosGeradosTab contratos={contratosGerados} templates={templates} onRefresh={fetchAll} />
+        {/* Preenchidos */}
+        <TabsContent value="preenchidos">
+          <ContratosPreenchidosTab contratos={contratosPreenchidos} onRefresh={fetchAll} />
         </TabsContent>
       </Tabs>
 
