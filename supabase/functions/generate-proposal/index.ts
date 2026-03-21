@@ -2,8 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -16,9 +16,10 @@ const TIPO_SERVICO_LABELS: Record<string, string> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  try {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -33,9 +34,8 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -159,6 +159,14 @@ Retorne APENAS o markdown da proposta, sem comentários adicionais.`;
   } catch (e) {
     console.error("AI error:", e);
     return new Response(JSON.stringify({ error: "AI generation failed", details: String(e) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  } catch (e) {
+    console.error("Unhandled error:", e);
+    return new Response(JSON.stringify({ error: "Internal server error", details: String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
