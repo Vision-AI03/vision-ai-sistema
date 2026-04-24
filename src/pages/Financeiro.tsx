@@ -15,13 +15,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, BarChart3, ArrowUpRight, ArrowDownRight,
-  Building2, User, CalendarIcon, Filter, Wallet, PieChart, Pencil, Trash2, Target,
+  Building2, User, CalendarIcon, Filter, Wallet, PieChart, Pencil, Trash2, Target, Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, subMonths, differenceInMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { parseBRL } from "@/lib/currency";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart as RechartsPie, Pie, Cell,
@@ -103,6 +105,16 @@ export default function Financeiro() {
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
   const [filtroMetodo, setFiltroMetodo] = useState("todos");
 
+  // Edit/Delete transações
+  const [editTrans, setEditTrans] = useState<TransacaoPessoal | null>(null);
+  const [editTransCategoria, setEditTransCategoria] = useState("");
+  const [editTransDescricao, setEditTransDescricao] = useState("");
+  const [editTransValor, setEditTransValor] = useState("");
+  const [editTransData, setEditTransData] = useState<Date>(new Date());
+  const [editTransMetodo, setEditTransMetodo] = useState("");
+  const [editTransSaving, setEditTransSaving] = useState(false);
+  const [deleteTransId, setDeleteTransId] = useState<string | null>(null);
+
   // Metas
   const [metaFaturamento, setMetaFaturamento] = useState(0);
   const [metaMRR, setMetaMRR] = useState(0);
@@ -144,12 +156,12 @@ export default function Financeiro() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast({ title: "Erro de autenticação", variant: "destructive" }); return; }
     const upsertData = [
-      { user_id: user.id, tipo: "faturamento_mes", valor: parseFloat(editMetaFat) || 0 },
-      { user_id: user.id, tipo: "mrr", valor: parseFloat(editMetaMrr) || 0 },
+      { user_id: user.id, tipo: "faturamento_mes", valor: parseBRL(editMetaFat) },
+      { user_id: user.id, tipo: "mrr", valor: parseBRL(editMetaMrr) },
     ];
     const { error } = await supabase.from("metas_financeiras").upsert(upsertData as any, { onConflict: "user_id,tipo" });
     if (error) { toast({ title: "Erro ao salvar metas", description: error.message, variant: "destructive" }); }
-    else { toast({ title: "Metas atualizadas!" }); setMetaFaturamento(parseFloat(editMetaFat) || 0); setMetaMRR(parseFloat(editMetaMrr) || 0); setMetasOpen(false); }
+    else { toast({ title: "Metas atualizadas!" }); setMetaFaturamento(parseBRL(editMetaFat)); setMetaMRR(parseBRL(editMetaMrr)); setMetasOpen(false); }
   }
 
   async function buildChartData(allParcelas: any[], allRecorrencias: any[], allCustos: Custo[]) {
@@ -184,7 +196,7 @@ export default function Financeiro() {
     if (!custoNome || !custoValor) { toast({ title: "Preencha nome e valor", variant: "destructive" }); return; }
     setSaving(true);
     const { error } = await supabase.from("custos").insert({
-      nome: custoNome.trim(), categoria: custoCategoria, valor_mensal: parseFloat(custoValor),
+      nome: custoNome.trim(), categoria: custoCategoria, valor_mensal: parseBRL(custoValor),
       data_renovacao: custoRenovacao || null, ativo: true, escopo: custoEscopo,
     } as any);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
@@ -203,7 +215,7 @@ export default function Financeiro() {
   async function handleEditarCusto(id: string, nome: string, categoria: string, valorMensal: string, renovacao: string) {
     if (!nome || !valorMensal) { toast({ title: "Preencha nome e valor", variant: "destructive" }); return; }
     const { error } = await supabase.from("custos").update({
-      nome: nome.trim(), categoria, valor_mensal: parseFloat(valorMensal), data_renovacao: renovacao || null,
+      nome: nome.trim(), categoria, valor_mensal: parseBRL(valorMensal), data_renovacao: renovacao || null,
     }).eq("id", id);
     if (error) { toast({ title: "Erro ao editar", description: error.message, variant: "destructive" }); }
     else { toast({ title: "Custo atualizado!" }); fetchAll(); }
@@ -216,7 +228,7 @@ export default function Financeiro() {
     if (!user) { toast({ title: "Erro de autenticação", variant: "destructive" }); setTransSaving(false); return; }
     const { error } = await supabase.from("transacoes_pessoais").insert({
       user_id: user.id, tipo: transTipo, categoria: transCategoria, descricao: transDescricao.trim(),
-      valor: parseFloat(transValor), data: format(transData, "yyyy-MM-dd"),
+      valor: parseBRL(transValor), data: format(transData, "yyyy-MM-dd"),
       recorrente: transRecorrente, dia_recorrencia: transRecorrente ? parseInt(transDiaRecorrencia) || null : null,
       metodo_pagamento: transMetodo || null, tags: null,
     } as any);
@@ -227,6 +239,34 @@ export default function Financeiro() {
       fetchAll();
     }
     setTransSaving(false);
+  }
+
+  function openEditTrans(t: TransacaoPessoal) {
+    setEditTrans(t);
+    setEditTransCategoria(t.categoria);
+    setEditTransDescricao(t.descricao);
+    setEditTransValor(String(t.valor));
+    setEditTransData(new Date(t.data + "T00:00:00"));
+    setEditTransMetodo(t.metodo_pagamento || "");
+  }
+
+  async function handleSalvarEditTrans() {
+    if (!editTrans) return;
+    setEditTransSaving(true);
+    const { error } = await supabase.from("transacoes_pessoais").update({
+      categoria: editTransCategoria, descricao: editTransDescricao.trim(),
+      valor: parseBRL(editTransValor), data: format(editTransData, "yyyy-MM-dd"),
+      metodo_pagamento: editTransMetodo || null,
+    } as any).eq("id", editTrans.id);
+    if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); }
+    else { toast({ title: "Conta atualizada!" }); setEditTrans(null); fetchAll(); }
+    setEditTransSaving(false);
+  }
+
+  async function handleExcluirTrans(id: string) {
+    const { error } = await supabase.from("transacoes_pessoais").delete().eq("id", id);
+    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); }
+    else { toast({ title: "Conta excluída!" }); setDeleteTransId(null); fetchAll(); }
   }
 
   // ---- CALCULATIONS ----
@@ -384,11 +424,11 @@ export default function Financeiro() {
                     <div className="space-y-4">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Meta de Faturamento Mensal (R$)</Label>
-                        <Input type="number" value={editMetaFat} onChange={e => setEditMetaFat(e.target.value)} placeholder="50000" />
+                        <CurrencyInput value={editMetaFat} onChange={setEditMetaFat} placeholder="50.000,00" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Meta de MRR (R$)</Label>
-                        <Input type="number" value={editMetaMrr} onChange={e => setEditMetaMrr(e.target.value)} placeholder="20000" />
+                        <CurrencyInput value={editMetaMrr} onChange={setEditMetaMrr} placeholder="20.000,00" />
                       </div>
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setMetasOpen(false)}>Cancelar</Button>
@@ -637,7 +677,7 @@ export default function Financeiro() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs">Valor *</Label>
-                          <Input type="number" value={transValor} onChange={e => setTransValor(e.target.value)} placeholder="99.90" />
+                          <CurrencyInput value={transValor} onChange={setTransValor} placeholder="99,90" />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Data</Label>
@@ -682,7 +722,7 @@ export default function Financeiro() {
                   <Card className="glass-card overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead>Método</TableHead><TableHead className="text-right">Valor</TableHead></TableRow>
+                        <TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead>Método</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="w-20"></TableHead></TableRow>
                       </TableHeader>
                       <TableBody>
                         {transacoesFiltradas.slice(0, 50).map(t => (
@@ -693,6 +733,16 @@ export default function Financeiro() {
                             <TableCell className="text-xs text-muted-foreground">{t.metodo_pagamento || "—"}</TableCell>
                             <TableCell className="text-right font-bold text-sm text-destructive">
                               -{formatCurrency(Number(t.valor))}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditTrans(t)}>
+                                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteTransId(t.id)}>
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -721,6 +771,70 @@ export default function Financeiro() {
           </Tabs>
         </TabsContent>
       </Tabs>
+
+      {/* Edit transação dialog */}
+      <Dialog open={!!editTrans} onOpenChange={open => { if (!open) setEditTrans(null); }}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader><DialogTitle>Editar Conta</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Categoria *</Label>
+              <Input value={editTransCategoria} onChange={e => setEditTransCategoria(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Descrição *</Label>
+              <Input value={editTransDescricao} onChange={e => setEditTransDescricao(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Valor *</Label>
+                <CurrencyInput value={editTransValor} onChange={setEditTransValor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(editTransData, "dd/MM/yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={editTransData} onSelect={d => d && setEditTransData(d)} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Método de Pagamento</Label>
+              <Select value={editTransMetodo} onValueChange={setEditTransMetodo}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{METODOS_PAGAMENTO.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setEditTrans(null)}>Cancelar</Button>
+            <Button onClick={handleSalvarEditTrans} disabled={editTransSaving} className="gradient-primary text-primary-foreground">
+              {editTransSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Salvar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete transação dialog */}
+      <AlertDialog open={!!deleteTransId} onOpenChange={open => { if (!open) setDeleteTransId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conta</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza? Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTransId && handleExcluirTrans(deleteTransId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -801,7 +915,7 @@ function CustosSection({ custos, totalCusto, novoCustoOpen, setNovoCustoOpen, cu
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Valor Mensal *</Label>
-                  <Input type="number" value={custoValor} onChange={(e: any) => setCustoValor(e.target.value)} placeholder="99.90" />
+                  <CurrencyInput value={custoValor} onChange={setCustoValor} placeholder="99,90" />
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -869,7 +983,7 @@ function CustosSection({ custos, totalCusto, novoCustoOpen, setNovoCustoOpen, cu
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-xs">Valor Mensal *</Label>
-                            <Input type="number" value={editValor} onChange={(e: any) => setEditValor(e.target.value)} />
+                            <CurrencyInput value={editValor} onChange={setEditValor} />
                           </div>
                         </div>
                         <div className="space-y-1.5">

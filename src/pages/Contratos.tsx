@@ -12,6 +12,8 @@ import { Plus, FileText, Upload, Sparkles, Loader2, FolderOpen, Wand2, Files } f
 import { supabase } from "@/integrations/supabase/client";
 import { format, addMonths } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { parseBRL } from "@/lib/currency";
 import ContratoDrawer from "@/components/contratos/ContratoDrawer";
 import ModelosTab from "@/components/contratos/ModelosTab";
 import PreencherContratoTab from "@/components/contratos/PreencherContratoTab";
@@ -148,7 +150,7 @@ export default function Contratos() {
       cliente_email: clienteEmail.trim() || null,
       cliente_telefone: clienteTelefone.trim() || null,
       tipo_servico: tipoServico,
-      valor_total: parseFloat(valorTotal),
+      valor_total: parseBRL(valorTotal),
       status: "pendente_assinatura",
       pdf_url: pdfUrl,
     }).select().maybeSingle();
@@ -157,8 +159,8 @@ export default function Contratos() {
       setSaving(false);
       return;
     }
-    const total = parseFloat(valorTotal);
-    const entrada = parseFloat(valorEntrada) || 0;
+    const total = parseBRL(valorTotal);
+    const entrada = parseBRL(valorEntrada);
     const parcelas = parseInt(numParcelas) || 1;
     const valorRestante = total - entrada;
     const valorParcela = parcelas > 0 ? valorRestante / parcelas : 0;
@@ -170,7 +172,7 @@ export default function Contratos() {
       parcelasInsert.push({ contrato_id: contrato.id, descricao: `Parcela ${i + 1}/${parcelas}`, valor: Math.round(valorParcela * 100) / 100, data_vencimento: format(addMonths(new Date(), i + 1), "yyyy-MM-dd"), status: "pendente" });
     }
     if (parcelasInsert.length > 0) await supabase.from("parcelas").insert(parcelasInsert);
-    const recorrencia = parseFloat(valorRecorrencia);
+    const recorrencia = parseBRL(valorRecorrencia);
     if (recorrencia > 0) {
       await supabase.from("recorrencias").insert({ contrato_id: contrato.id, valor_mensal: recorrencia, dia_vencimento: parseInt(diaVencimento) || 10, ativo: false });
     }
@@ -257,13 +259,13 @@ export default function Contratos() {
                     </div>
                     <Separator />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><Label className="text-xs">Valor Total *</Label><Input type="number" value={valorTotal} onChange={e => setValorTotal(e.target.value)} placeholder="5000" /></div>
-                      <div className="space-y-1.5"><Label className="text-xs">Valor da Entrada</Label><Input type="number" value={valorEntrada} onChange={e => setValorEntrada(e.target.value)} placeholder="0" /></div>
+                      <div className="space-y-1.5"><Label className="text-xs">Valor Total *</Label><CurrencyInput value={valorTotal} onChange={setValorTotal} placeholder="5.000,00" /></div>
+                      <div className="space-y-1.5"><Label className="text-xs">Valor da Entrada</Label><CurrencyInput value={valorEntrada} onChange={setValorEntrada} placeholder="0,00" /></div>
                       <div className="space-y-1.5"><Label className="text-xs">Número de Parcelas</Label><Input type="number" value={numParcelas} onChange={e => setNumParcelas(e.target.value)} placeholder="3" min="1" /></div>
                     </div>
                     <Separator />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><Label className="text-xs">Recorrência Mensal (R$)</Label><Input type="number" value={valorRecorrencia} onChange={e => setValorRecorrencia(e.target.value)} placeholder="0 = sem recorrência" /></div>
+                      <div className="space-y-1.5"><Label className="text-xs">Recorrência Mensal (R$)</Label><CurrencyInput value={valorRecorrencia} onChange={setValorRecorrencia} placeholder="0,00 = sem recorrência" /></div>
                       <div className="space-y-1.5"><Label className="text-xs">Dia do Vencimento</Label><Input type="number" value={diaVencimento} onChange={e => setDiaVencimento(e.target.value)} placeholder="10" min="1" max="31" /></div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">

@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import type { Tables } from "@/integrations/supabase/types";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { parseBRL } from "@/lib/currency";
 
 type Contrato = Tables<"contratos">;
 type Parcela = Tables<"parcelas">;
@@ -143,7 +145,7 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
       cliente_email: editEmail.trim() || null,
       cliente_telefone: editTelefone.trim() || null,
       tipo_servico: editTipoServico,
-      valor_total: parseFloat(editValorTotal) || 0,
+      valor_total: parseBRL(editValorTotal),
       status: editStatus,
     }).eq("id", contrato.id);
 
@@ -344,7 +346,7 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Valor Total</Label>
-                        <Input type="number" value={editValorTotal} onChange={e => setEditValorTotal(e.target.value)} />
+                        <CurrencyInput value={editValorTotal} onChange={setEditValorTotal} />
                       </div>
                     </div>
                     <div className="space-y-1.5">

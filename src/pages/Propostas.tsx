@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -15,12 +15,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   FileText, Plus, Loader2, Sparkles, Copy, Check, Send,
-  Calendar, DollarSign, ChevronRight, Download, Trash2,
+  Calendar, DollarSign, ChevronRight, Download, Trash2, Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { parseBRL } from "@/lib/currency";
 
 interface Proposta {
   id: string;
@@ -62,8 +64,8 @@ const MODELOS_COBRANCA = [
 ] as const;
 
 function formatarValor(valor: number | string): string {
-  const num = typeof valor === "string" ? parseFloat(valor.replace(",", ".")) : valor;
-  if (isNaN(num)) return "";
+  const num = typeof valor === "string" ? parseBRL(valor) : valor;
+  if (!num) return "";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num);
 }
 
@@ -84,11 +86,11 @@ function CamposCobranca({ modelo, onChange }: {
       resumo = `Setup: ${formatarValor(newSetup) || "R$ —"} + Mensalidade: ${formatarValor(newMens) || "R$ —"}/mês`;
       valor = newSetup;
     } else if (modelo === "sistema_5050") {
-      const t = parseFloat(newTotal) || 0;
+      const t = parseBRL(newTotal);
       resumo = `50%/50% — Entrada: ${formatarValor(t * 0.5)} | Na entrega: ${formatarValor(t * 0.5)}`;
       valor = newTotal;
     } else if (modelo === "sistema_3070") {
-      const t = parseFloat(newTotal) || 0;
+      const t = parseBRL(newTotal);
       resumo = `30%/70% — Entrada: ${formatarValor(t * 0.3)} | Na entrega: ${formatarValor(t * 0.7)}`;
       valor = newTotal;
     } else if (modelo === "automacao_unico") {
@@ -106,13 +108,13 @@ function CamposCobranca({ modelo, onChange }: {
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Valor do Setup (R$)</Label>
-          <Input type="number" value={setup} placeholder="3000"
-            onChange={e => { setSetup(e.target.value); emitir(e.target.value, mensalidade, total, personalizado); }} />
+          <CurrencyInput value={setup} placeholder="3.000,00"
+            onChange={v => { setSetup(v); emitir(v, mensalidade, total, personalizado); }} />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Mensalidade (R$)</Label>
-          <Input type="number" value={mensalidade} placeholder="500"
-            onChange={e => { setMensalidade(e.target.value); emitir(setup, e.target.value, total, personalizado); }} />
+          <CurrencyInput value={mensalidade} placeholder="500,00"
+            onChange={v => { setMensalidade(v); emitir(setup, v, total, personalizado); }} />
         </div>
       </div>
       {(setup || mensalidade) && (
@@ -125,13 +127,13 @@ function CamposCobranca({ modelo, onChange }: {
 
   if (modelo === "sistema_5050" || modelo === "sistema_3070") {
     const pct = modelo === "sistema_5050" ? [0.5, 0.5] : [0.3, 0.7];
-    const t = parseFloat(total) || 0;
+    const t = parseBRL(total);
     return (
       <div className="space-y-2">
         <div className="space-y-1">
           <Label className="text-xs">Valor Total do Projeto (R$)</Label>
-          <Input type="number" value={total} placeholder="10000"
-            onChange={e => { setTotal(e.target.value); emitir(setup, mensalidade, e.target.value, personalizado); }} />
+          <CurrencyInput value={total} placeholder="10.000,00"
+            onChange={v => { setTotal(v); emitir(setup, mensalidade, v, personalizado); }} />
         </div>
         {total && (
           <p className="text-xs text-primary font-medium">
@@ -146,8 +148,8 @@ function CamposCobranca({ modelo, onChange }: {
     <div className="space-y-2">
       <div className="space-y-1">
         <Label className="text-xs">Valor Total (R$)</Label>
-        <Input type="number" value={total} placeholder="5000"
-          onChange={e => { setTotal(e.target.value); emitir(setup, mensalidade, e.target.value, personalizado); }} />
+        <CurrencyInput value={total} placeholder="5.000,00"
+          onChange={v => { setTotal(v); emitir(setup, mensalidade, v, personalizado); }} />
       </div>
       {total && <p className="text-xs text-primary font-medium">Valor único: {formatarValor(total)}</p>}
     </div>
@@ -250,6 +252,12 @@ export default function Propostas() {
   const [selectedProposta, setSelectedProposta] = useState<Proposta | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [propostaToDelete, setPropostaToDelete] = useState<Proposta | null>(null);
+  const [propostaToEdit, setPropostaToEdit] = useState<Proposta | null>(null);
+  const [editTitulo, setEditTitulo] = useState("");
+  const [editTipoServico, setEditTipoServico] = useState("agente_ia");
+  const [editValor, setEditValor] = useState("");
+  const [editStatus, setEditStatus] = useState("rascunho");
+  const [editSaving, setEditSaving] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -321,7 +329,7 @@ export default function Propostas() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const valorNum = valorNumerico ? parseFloat(valorNumerico) : null;
+    const valorNum = valorNumerico ? parseBRL(valorNumerico) : null;
 
     const { error } = await supabase.from("propostas").insert({
       user_id: user.id, titulo: titulo.trim(), tipo_servico: tipoServico,
@@ -346,6 +354,33 @@ export default function Propostas() {
     } as any).eq("id", propostaId);
     fetchPropostas();
     if (selectedProposta?.id === propostaId) setSelectedProposta(prev => prev ? { ...prev, status } : prev);
+  }
+
+  function openEdit(proposta: Proposta) {
+    setPropostaToEdit(proposta);
+    setEditTitulo(proposta.titulo);
+    setEditTipoServico(proposta.tipo_servico);
+    setEditValor(proposta.valor_estimado != null ? String(proposta.valor_estimado) : "");
+    setEditStatus(proposta.status);
+  }
+
+  async function handleSaveEdit() {
+    if (!propostaToEdit) return;
+    setEditSaving(true);
+    const { error } = await supabase.from("propostas").update({
+      titulo: editTitulo.trim(),
+      tipo_servico: editTipoServico,
+      valor_estimado: editValor ? parseBRL(editValor) : null,
+      status: editStatus,
+    } as any).eq("id", propostaToEdit.id);
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Proposta atualizada!" });
+      fetchPropostas();
+      setPropostaToEdit(null);
+    }
+    setEditSaving(false);
   }
 
   async function handleDelete(proposta: Proposta) {
@@ -514,13 +549,21 @@ export default function Propostas() {
                 <Card key={proposta.id}
                   className="cursor-pointer hover:border-primary/50 transition-colors group relative"
                   onClick={() => { setSelectedProposta(proposta); setDrawerOpen(true); }}>
-                  {/* Trash — visible on card hover */}
-                  <button
-                    className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10"
-                    onClick={e => { e.stopPropagation(); setPropostaToDelete(proposta); }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </button>
+                  {/* Edit + Trash — visible on card hover */}
+                  <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      className="p-1.5 rounded hover:bg-primary/10"
+                      onClick={e => { e.stopPropagation(); openEdit(proposta); }}
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    <button
+                      className="p-1.5 rounded hover:bg-destructive/10"
+                      onClick={e => { e.stopPropagation(); setPropostaToDelete(proposta); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </button>
+                  </div>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2 pr-6">
                       <p className="font-medium text-sm line-clamp-2">{proposta.titulo}</p>
@@ -598,6 +641,12 @@ export default function Propostas() {
                     </Button>
                   )}
                   <Button size="sm" variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => openEdit(selectedProposta)}>
+                    <Pencil className="h-3 w-3" />
+                    Editar
+                  </Button>
+                  <Button size="sm" variant="outline"
                     className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
                     onClick={() => setPropostaToDelete(selectedProposta)}>
                     <Trash2 className="h-3 w-3" />
@@ -630,6 +679,53 @@ export default function Propostas() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={!!propostaToEdit} onOpenChange={open => { if (!open) setPropostaToEdit(null); }}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader><DialogTitle>Editar Proposta</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Título</Label>
+              <Input value={editTitulo} onChange={e => setEditTitulo(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tipo de Serviço</Label>
+              <Select value={editTipoServico} onValueChange={setEditTipoServico}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agente_ia">Agente de IA</SelectItem>
+                  <SelectItem value="automacao">Automação</SelectItem>
+                  <SelectItem value="sistema">Sistema Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Valor Estimado (R$)</Label>
+              <CurrencyInput value={editValor} onChange={setEditValor} placeholder="0,00" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select value={editStatus} onValueChange={setEditStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rascunho">Rascunho</SelectItem>
+                  <SelectItem value="enviada">Enviada</SelectItem>
+                  <SelectItem value="aceita">Aceita</SelectItem>
+                  <SelectItem value="recusada">Recusada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setPropostaToEdit(null)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} disabled={editSaving} className="gradient-primary text-primary-foreground">
+              {editSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
