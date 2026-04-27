@@ -71,6 +71,13 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
   const [deleting, setDeleting] = useState(false);
   const [generatingTasks, setGeneratingTasks] = useState(false);
   const [cobrancaLoadingId, setCobrancaLoadingId] = useState<string | null>(null);
+
+  // Inline edit recorrência
+  const [editingRecId, setEditingRecId] = useState<string | null>(null);
+  const [editRecValor, setEditRecValor] = useState("");
+  const [editRecDia, setEditRecDia] = useState("");
+  const [editRecStatus, setEditRecStatus] = useState("ativo");
+  const [savingRec, setSavingRec] = useState(false);
   const { toast } = useToast();
 
   // Editable fields
@@ -260,6 +267,24 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
       description: "Edite o contrato e adicione telefone ou email.",
       variant: "destructive",
     });
+  }
+
+  async function handleSalvarRecorrencia(recId: string) {
+    setSavingRec(true);
+    const isAtivo = editRecStatus === "ativo";
+    const { error } = await supabase.from("recorrencias").update({
+      valor_mensal: parseBRL(editRecValor),
+      dia_vencimento: parseInt(editRecDia),
+      ativo: isAtivo,
+    }).eq("id", recId);
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Recorrência atualizada!" });
+      setEditingRecId(null);
+      if (contrato) { fetchDetails(contrato.id); onUpdate(); }
+    }
+    setSavingRec(false);
   }
 
   if (!contrato) return null;
@@ -475,14 +500,58 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Recorrências</h4>
                     {recorrencias.map(r => (
-                      <div key={r.id} className="flex items-center justify-between bg-secondary/20 rounded-lg p-3 text-sm">
-                        <div>
-                          <p className="font-medium">{formatCurrency(Number(r.valor_mensal))}/mês</p>
-                          <p className="text-[10px] text-muted-foreground">Dia de vencimento: {r.dia_vencimento}</p>
-                        </div>
-                        <Badge className={r.ativo ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"}>
-                          {r.ativo ? "Ativo" : "Inativo"}
-                        </Badge>
+                      <div key={r.id} className="bg-secondary/20 rounded-lg p-3 text-sm">
+                        {editingRecId === r.id ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Valor Mensal</Label>
+                                <CurrencyInput value={editRecValor} onChange={setEditRecValor} />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Dia de Vencimento</Label>
+                                <Input type="number" min="1" max="31" value={editRecDia} onChange={e => setEditRecDia(e.target.value)} className="h-9" />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px]">Status</Label>
+                              <Select value={editRecStatus} onValueChange={setEditRecStatus}>
+                                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ativo">Ativo</SelectItem>
+                                  <SelectItem value="pausado">Pausado</SelectItem>
+                                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingRecId(null)}>Cancelar</Button>
+                              <Button size="sm" className="h-7 text-xs gradient-primary text-primary-foreground" onClick={() => handleSalvarRecorrencia(r.id)} disabled={savingRec}>
+                                {savingRec ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}Salvar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{formatCurrency(Number(r.valor_mensal))}/mês</p>
+                              <p className="text-[10px] text-muted-foreground">Dia de vencimento: {r.dia_vencimento}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={r.ativo ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"}>
+                                {r.ativo ? "Ativo" : "Inativo"}
+                              </Badge>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                setEditingRecId(r.id);
+                                setEditRecValor(String(r.valor_mensal));
+                                setEditRecDia(String(r.dia_vencimento));
+                                setEditRecStatus(r.ativo ? "ativo" : "cancelado");
+                              }}>
+                                <Pencil className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

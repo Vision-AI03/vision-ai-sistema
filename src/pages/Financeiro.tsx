@@ -115,6 +115,14 @@ export default function Financeiro() {
   const [editTransSaving, setEditTransSaving] = useState(false);
   const [deleteTransId, setDeleteTransId] = useState<string | null>(null);
 
+  // Edit recorrência
+  const [editRec, setEditRec] = useState<any | null>(null);
+  const [editRecNome, setEditRecNome] = useState("");
+  const [editRecValor, setEditRecValor] = useState("");
+  const [editRecDia, setEditRecDia] = useState("");
+  const [editRecStatus, setEditRecStatus] = useState("ativo");
+  const [editRecSaving, setEditRecSaving] = useState(false);
+
   // Metas
   const [metaFaturamento, setMetaFaturamento] = useState(0);
   const [metaMRR, setMetaMRR] = useState(0);
@@ -267,6 +275,31 @@ export default function Financeiro() {
     const { error } = await supabase.from("transacoes_pessoais").delete().eq("id", id);
     if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); }
     else { toast({ title: "Conta excluída!" }); setDeleteTransId(null); fetchAll(); }
+  }
+
+  function openEditRec(r: any) {
+    setEditRec(r);
+    setEditRecNome(r.contratos?.cliente_nome || "");
+    setEditRecValor(String(r.valor_mensal));
+    setEditRecDia(String(r.dia_vencimento));
+    setEditRecStatus(r.ativo ? "ativo" : "cancelado");
+  }
+
+  async function handleSalvarEditRec() {
+    if (!editRec) return;
+    setEditRecSaving(true);
+    const isAtivo = editRecStatus === "ativo";
+    const { error } = await supabase.from("recorrencias").update({
+      valor_mensal: parseBRL(editRecValor),
+      dia_vencimento: parseInt(editRecDia),
+      ativo: isAtivo,
+    }).eq("id", editRec.id);
+    if (!error && editRecNome.trim() && editRecNome !== editRec.contratos?.cliente_nome) {
+      await supabase.from("contratos").update({ cliente_nome: editRecNome.trim() }).eq("id", editRec.contrato_id);
+    }
+    if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); }
+    else { toast({ title: "Recorrência atualizada!" }); setEditRec(null); fetchAll(); }
+    setEditRecSaving(false);
   }
 
   // ---- CALCULATIONS ----
@@ -609,14 +642,21 @@ export default function Financeiro() {
                 <div className="grid gap-3">
                   {recorrencias.map((r: any) => (
                     <Card key={r.id} className="glass-card">
-                      <CardContent className="p-4 flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold">{r.contratos?.cliente_nome || "—"}</p>
-                          <p className="text-xs text-muted-foreground">Dia {r.dia_vencimento} — {formatCurrency(Number(r.valor_mensal))}/mês</p>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold">{r.contratos?.cliente_nome || "—"}</p>
+                            <p className="text-xs text-muted-foreground">Dia {r.dia_vencimento} — {formatCurrency(Number(r.valor_mensal))}/mês</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className={r.ativo ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}>
+                              {r.ativo ? "Ativo" : "Inativo"}
+                            </Badge>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 -mr-1" onClick={() => openEditRec(r)}>
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </div>
                         </div>
-                        <Badge className={r.ativo ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}>
-                          {r.ativo ? "Ativo" : "Inativo"}
-                        </Badge>
                       </CardContent>
                     </Card>
                   ))}
@@ -835,6 +875,53 @@ export default function Financeiro() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit recorrência dialog */}
+      <Dialog open={!!editRec} onOpenChange={open => { if (!open) setEditRec(null); }}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader><DialogTitle>Editar Recorrência</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Nome do Contrato</Label>
+              <Input value={editRecNome} onChange={e => setEditRecNome(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Valor Mensal (R$)</Label>
+                <CurrencyInput value={editRecValor} onChange={setEditRecValor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dia de Vencimento (1–31)</Label>
+                <Input type="number" min="1" max="31" value={editRecDia} onChange={e => setEditRecDia(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select value={editRecStatus} onValueChange={setEditRecStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="pausado">Pausado</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editRec && recorrencias.filter((r: any) =>
+              r.id !== editRec.id && r.ativo && r.contratos?.cliente_nome === editRec.contratos?.cliente_nome
+            ).length > 0 && (
+              <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                Atenção: há outra recorrência ativa para este cliente. Verifique se há duplicação e cancele a antiga.
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setEditRec(null)}>Cancelar</Button>
+            <Button onClick={handleSalvarEditRec} disabled={editRecSaving} className="gradient-primary text-primary-foreground">
+              {editRecSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Salvar alterações
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
