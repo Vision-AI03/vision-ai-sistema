@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, BarChart3, ArrowUpRight, ArrowDownRight,
-  Building2, User, CalendarIcon, Filter, Wallet, PieChart, Pencil, Trash2, Target, Loader2,
+  Building2, User, CalendarIcon, Filter, Wallet, PieChart, Pencil, Trash2, Target, Loader2, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, subMonths, differenceInMonths } from "date-fns";
@@ -146,7 +146,7 @@ export default function Financeiro() {
     setRecorrencias(rRes.data || []);
     setCustos(custRes.data || []);
     setTransacoes((tRes.data as TransacaoPessoal[]) || []);
-    await buildChartData(pRes.data || [], rRes.data || [], custRes.data || []);
+    await buildChartData(pRes.data || [], rRes.data || [], custRes.data || [], cRes.data || []);
     setLoading(false);
   }
 
@@ -172,7 +172,7 @@ export default function Financeiro() {
     else { toast({ title: "Metas atualizadas!" }); setMetaFaturamento(parseBRL(editMetaFat)); setMetaMRR(parseBRL(editMetaMrr)); setMetasOpen(false); }
   }
 
-  async function buildChartData(allParcelas: any[], allRecorrencias: any[], allCustos: Custo[]) {
+  async function buildChartData(allParcelas: any[], allRecorrencias: any[], allCustos: Custo[], allContratos: Contrato[]) {
     const now = new Date();
     const mrrAtivo = allRecorrencias.filter((r: Recorrencia) => r.ativo).reduce((s: number, r: Recorrencia) => s + Number(r.valor_mensal), 0);
     const totalCustos = allCustos.filter(c => c.ativo && ((c as any).escopo === 'empresa' || !(c as any).escopo)).reduce((s, c) => s + Number(c.valor_mensal), 0);
@@ -191,7 +191,11 @@ export default function Financeiro() {
       );
       const dev = devPagas.reduce((s: number, p: Parcela) => s + Number(p.valor), 0);
 
-      monthly.push({ mes: label, desenvolvimento: dev, recorrente: mrrAtivo, custos: totalCustos, margem: dev + mrrAtivo - totalCustos });
+      const contratadoMes = allContratos
+        .filter(c => c.criado_em >= mStart && c.criado_em <= mEnd + "T23:59:59")
+        .reduce((s, c) => s + Number(c.valor_total), 0);
+
+      monthly.push({ mes: label, desenvolvimento: dev, recorrente: mrrAtivo, custos: totalCustos, margem: dev + mrrAtivo - totalCustos, contratado: contratadoMes });
       mrr.push({ mes: label, mrr: mrrAtivo });
     }
 
@@ -355,6 +359,25 @@ export default function Financeiro() {
     return { ...c, recebido, pendente };
   });
 
+  // Contratos em andamento (visão financeira)
+  const hoje = format(now, "yyyy-MM-dd");
+  const contratosAtivos = contratos.filter(c => c.status !== "encerrado");
+  const totalContratado = contratosAtivos.reduce((s, c) => s + Number(c.valor_total), 0);
+  const totalPagoContratos = parcelas
+    .filter((p: any) => ["pago", "confirmado"].includes(p.status))
+    .reduce((s: number, p: any) => s + Number(p.valor), 0);
+  const totalAReceber = Math.max(totalContratado - totalPagoContratos, 0);
+  const percentualRecebido = totalContratado > 0 ? Math.round((totalPagoContratos / totalContratado) * 100) : 0;
+
+  const contratosAndamento = contratosAtivos.map(c => {
+    const parcelasC = parcelas.filter((p: any) => p.contrato_id === c.id);
+    const pagas = parcelasC.filter((p: any) => ["pago", "confirmado"].includes(p.status));
+    const valorPago = pagas.reduce((s: number, p: any) => s + Number(p.valor), 0);
+    const pct = Number(c.valor_total) > 0 ? Math.min((valorPago / Number(c.valor_total)) * 100, 100) : 0;
+    const atrasado = parcelasC.some((p: any) => !["pago", "confirmado"].includes(p.status) && p.data_vencimento < hoje);
+    return { ...c, valorPago, pct, parcelasPagas: pagas.length, totalParcelas: parcelasC.length, atrasado };
+  });
+
   // Pessoal calcs
   const mesAnteriorStart = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
   const mesAnteriorEnd = format(endOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
@@ -437,11 +460,59 @@ export default function Financeiro() {
         <TabsContent value="empresa" className="space-y-6">
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <SummaryCard icon={<DollarSign className="h-5 w-5" />} title="Receita Total" value={formatCurrency(receitaTotal)} subtitle={`Dev: ${formatCurrency(receitaDev)} + MRR: ${formatCurrency(mrrAtual)}`} accent="text-primary" />
+            <Card className="glass-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-primary"><DollarSign className="h-5 w-5" /></span>
+                  <p className="text-xs text-muted-foreground">Receita Total</p>
+                </div>
+                <p className="text-xl font-bold text-primary">{formatCurrency(receitaTotal)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Dev: {formatCurrency(receitaDev)} + MRR: {formatCurrency(mrrAtual)}</p>
+                {totalContratado > 0 && (
+                  <div className="mt-2 pt-2 border-t border-border/50 space-y-0.5">
+                    <p className="text-[10px] text-muted-foreground">Contratado: <span className="text-foreground font-medium">{formatCurrency(totalContratado)}</span></p>
+                    <p className="text-[10px] text-muted-foreground">A receber: <span className="text-accent font-medium">{formatCurrency(totalAReceber)}</span></p>
+                    <Badge className="mt-1 text-[10px] px-1.5 py-0 h-4 bg-primary/20 text-primary border-0">{percentualRecebido}% recebido</Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             <SummaryCard icon={<TrendingDown className="h-5 w-5" />} title="Custos do Mês" value={formatCurrency(totalCustosEmpresaMes)} subtitle={`${custosEmpresa.filter(c => c.ativo).length} custos ativos`} accent="text-destructive" />
             <SummaryCard icon={margemLiquida >= 0 ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />} title="Margem Líquida" value={formatCurrency(margemLiquida)} subtitle={`${margemPct}% da receita`} accent={margemLiquida >= 0 ? "text-primary" : "text-destructive"} />
             <SummaryCard icon={<TrendingUp className="h-5 w-5" />} title="MRR Atual" value={formatCurrency(mrrAtual)} subtitle={`${recorrencias.filter(r => r.ativo).length} contratos ativos`} accent="text-accent" />
           </div>
+
+          {/* Contratos em Andamento */}
+          {contratosAndamento.length > 0 && (
+            <Card className="glass-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />Contratos em Andamento
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                {contratosAndamento.map(c => (
+                  <div key={c.id} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{c.cliente_nome}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge className={c.atrasado ? "bg-destructive/20 text-destructive border-0 text-[10px] px-1.5 py-0 h-4" : "bg-green-500/20 text-green-400 border-0 text-[10px] px-1.5 py-0 h-4"}>
+                          {c.atrasado ? "Atrasado" : "Em dia"}
+                        </Badge>
+                        <span className="text-sm font-bold">{formatCurrency(Number(c.valor_total))}</span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                      <div className="h-2 rounded-full bg-green-500 transition-all" style={{ width: `${c.pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatCurrency(c.valorPago)} recebidos de {formatCurrency(Number(c.valor_total))} — {c.parcelasPagas} parcela{c.parcelasPagas !== 1 ? "s" : ""} paga{c.parcelasPagas !== 1 ? "s" : ""} de {c.totalParcelas}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Metas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -557,6 +628,7 @@ export default function Financeiro() {
                       <Bar dataKey="desenvolvimento" name="Desenvolvimento" fill="hsl(252 100% 64%)" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="recorrente" name="Recorrente" fill="hsl(187 100% 50%)" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="custos" name="Custos" fill="hsl(0 72% 51%)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="contratado" name="Contratado" fill="hsl(280 50% 65%)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
