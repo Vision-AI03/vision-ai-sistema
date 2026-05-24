@@ -132,6 +132,24 @@ export default function Financeiro() {
 
   useEffect(() => { fetchAll(); fetchMetas(); }, []);
 
+  function findDuplicateRecIds(recs: any[]): string[] {
+    const byContrato: Record<string, any[]> = {};
+    recs.forEach(r => {
+      if (r.ativo) {
+        if (!byContrato[r.contrato_id]) byContrato[r.contrato_id] = [];
+        byContrato[r.contrato_id].push(r);
+      }
+    });
+    const toCancel: string[] = [];
+    for (const activeRecs of Object.values(byContrato)) {
+      if (activeRecs.length > 1) {
+        activeRecs.sort((a, b) => Number(b.valor_mensal) - Number(a.valor_mensal));
+        activeRecs.slice(1).forEach(r => toCancel.push(r.id));
+      }
+    }
+    return toCancel;
+  }
+
   async function fetchAll() {
     setLoading(true);
     const [cRes, pRes, rRes, custRes, tRes] = await Promise.all([
@@ -141,12 +159,21 @@ export default function Financeiro() {
       supabase.from("custos").select("*").order("criado_em", { ascending: false }),
       supabase.from("transacoes_pessoais").select("*").order("data", { ascending: false }),
     ]);
+
+    let recorrenciasData: any[] = rRes.data || [];
+    const duplicateIds = findDuplicateRecIds(recorrenciasData);
+    if (duplicateIds.length > 0) {
+      await Promise.all(duplicateIds.map(id => supabase.from("recorrencias").update({ ativo: false }).eq("id", id)));
+      const rFixed = await supabase.from("recorrencias").select("*, contratos(cliente_nome)");
+      recorrenciasData = rFixed.data || [];
+    }
+
     setContratos(cRes.data || []);
     setParcelas(pRes.data || []);
-    setRecorrencias(rRes.data || []);
+    setRecorrencias(recorrenciasData);
     setCustos(custRes.data || []);
     setTransacoes((tRes.data as TransacaoPessoal[]) || []);
-    await buildChartData(pRes.data || [], rRes.data || [], custRes.data || [], cRes.data || []);
+    await buildChartData(pRes.data || [], recorrenciasData, custRes.data || [], cRes.data || []);
     setLoading(false);
   }
 
@@ -195,7 +222,7 @@ export default function Financeiro() {
         .filter(c => c.criado_em >= mStart && c.criado_em <= mEnd + "T23:59:59")
         .reduce((s, c) => s + Number(c.valor_total), 0);
 
-      monthly.push({ mes: label, desenvolvimento: dev, recorrente: mrrAtivo, custos: totalCustos, margem: dev + mrrAtivo - totalCustos, contratado: contratadoMes });
+      monthly.push({ mes: label, desenvolvimento: dev, recorrente: mrrAtivo, custos: totalCustos, margem: dev + mrrAtivo - totalCustos, faturado: contratadoMes });
       mrr.push({ mes: label, mrr: mrrAtivo });
     }
 
@@ -362,20 +389,27 @@ export default function Financeiro() {
   // Contratos em andamento (visão financeira)
   const hoje = format(now, "yyyy-MM-dd");
   const contratosAtivos = contratos.filter(c => c.status !== "encerrado");
+  const totalFaturado = contratos.filter(c => c.status === "ativo").reduce((s, c) => s + Number(c.valor_total), 0);
+  const caixaRecebido = parcelas.filter((p: any) => ["pago", "confirmado"].includes(p.status)).reduce((s: number, p: any) => s + Number(p.valor), 0);
+  const aReceberFaturado = Math.max(totalFaturado - caixaRecebido, 0);
   const totalContratado = contratosAtivos.reduce((s, c) => s + Number(c.valor_total), 0);
-  const totalPagoContratos = parcelas
-    .filter((p: any) => ["pago", "confirmado"].includes(p.status))
-    .reduce((s: number, p: any) => s + Number(p.valor), 0);
-  const totalAReceber = Math.max(totalContratado - totalPagoContratos, 0);
-  const percentualRecebido = totalContratado > 0 ? Math.round((totalPagoContratos / totalContratado) * 100) : 0;
+  const totalPagoContratos = caixaRecebido;
+  const totalAReceber = Math.max(totalContratado - caixaRecebido, 0);
+  const percentualRecebido = totalContratado > 0 ? Math.round((caixaRecebido / totalContratado) * 100) : 0;
 
   const contratosAndamento = contratosAtivos.map(c => {
     const parcelasC = parcelas.filter((p: any) => p.contrato_id === c.id);
     const pagas = parcelasC.filter((p: any) => ["pago", "confirmado"].includes(p.status));
+    const pendentes = parcelasC.filter((p: any) => !["pago", "confirmado"].includes(p.status));
     const valorPago = pagas.reduce((s: number, p: any) => s + Number(p.valor), 0);
+    const valorPendente = pendentes.reduce((s: number, p: any) => s + Number(p.valor), 0);
     const pct = Number(c.valor_total) > 0 ? Math.min((valorPago / Number(c.valor_total)) * 100, 100) : 0;
     const atrasado = parcelasC.some((p: any) => !["pago", "confirmado"].includes(p.status) && p.data_vencimento < hoje);
-    return { ...c, valorPago, pct, parcelasPagas: pagas.length, totalParcelas: parcelasC.length, atrasado };
+    const pendentesOrdenadas = [...pendentes].sort((a: any, b: any) => a.data_vencimento.localeCompare(b.data_vencimento));
+    const proximaParcela = pendentesOrdenadas[0] || null;
+    const todasOrdenadas = [...parcelasC].sort((a: any, b: any) => a.data_vencimento.localeCompare(b.data_vencimento));
+    const numProxima = proximaParcela ? todasOrdenadas.findIndex((p: any) => p.id === proximaParcela.id) + 1 : null;
+    return { ...c, valorPago, valorPendente, pct, parcelasPagas: pagas.length, totalParcelas: parcelasC.length, atrasado, proximaParcela, numProxima };
   });
 
   // Pessoal calcs
@@ -464,17 +498,14 @@ export default function Financeiro() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-primary"><DollarSign className="h-5 w-5" /></span>
-                  <p className="text-xs text-muted-foreground">Receita Total</p>
+                  <p className="text-xs text-muted-foreground">Faturamento</p>
                 </div>
-                <p className="text-xl font-bold text-primary">{formatCurrency(receitaTotal)}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Dev: {formatCurrency(receitaDev)} + MRR: {formatCurrency(mrrAtual)}</p>
-                {totalContratado > 0 && (
-                  <div className="mt-2 pt-2 border-t border-border/50 space-y-0.5">
-                    <p className="text-[10px] text-muted-foreground">Contratado: <span className="text-foreground font-medium">{formatCurrency(totalContratado)}</span></p>
-                    <p className="text-[10px] text-muted-foreground">A receber: <span className="text-accent font-medium">{formatCurrency(totalAReceber)}</span></p>
-                    <Badge className="mt-1 text-[10px] px-1.5 py-0 h-4 bg-primary/20 text-primary border-0">{percentualRecebido}% recebido</Badge>
-                  </div>
-                )}
+                <p className="text-xl font-bold text-primary">{formatCurrency(totalFaturado)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Faturado — contratos ativos</p>
+                <div className="mt-2 pt-2 border-t border-border/50 space-y-0.5">
+                  <p className="text-[10px] text-muted-foreground">Caixa recebido: <span className="text-green-400 font-medium">{formatCurrency(caixaRecebido)}</span></p>
+                  <p className="text-[10px] text-muted-foreground">A receber: <span className="text-accent font-medium">{formatCurrency(aReceberFaturado)}</span></p>
+                </div>
               </CardContent>
             </Card>
             <SummaryCard icon={<TrendingDown className="h-5 w-5" />} title="Custos do Mês" value={formatCurrency(totalCustosEmpresaMes)} subtitle={`${custosEmpresa.filter(c => c.ativo).length} custos ativos`} accent="text-destructive" />
@@ -502,11 +533,14 @@ export default function Financeiro() {
                         <span className="text-sm font-bold">{formatCurrency(Number(c.valor_total))}</span>
                       </div>
                     </div>
-                    <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
-                      <div className="h-2 rounded-full bg-green-500 transition-all" style={{ width: `${c.pct}%` }} />
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden">
+                        <div className="h-2 rounded-full bg-green-500 transition-all" style={{ width: `${c.pct}%` }} />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{Math.round(c.pct)}% recebido</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      {formatCurrency(c.valorPago)} recebidos de {formatCurrency(Number(c.valor_total))} — {c.parcelasPagas} parcela{c.parcelasPagas !== 1 ? "s" : ""} paga{c.parcelasPagas !== 1 ? "s" : ""} de {c.totalParcelas}
+                      {formatCurrency(c.valorPago)} recebidos · {formatCurrency(c.valorPendente)} pendentes{c.proximaParcela ? ` · Parcela ${c.numProxima}/${c.totalParcelas} próxima em ${format(new Date(c.proximaParcela.data_vencimento + "T00:00:00"), "dd/MM")}` : ""}
                     </p>
                   </div>
                 ))}
@@ -546,12 +580,12 @@ export default function Financeiro() {
                 {metaFaturamento > 0 ? (
                   <>
                     <div className="flex items-end justify-between mb-2">
-                      <p className="text-2xl font-bold text-primary">{formatCurrency(receitaTotal)}</p>
+                      <p className="text-2xl font-bold text-primary">{formatCurrency(totalFaturado)}</p>
                       <p className="text-xs text-muted-foreground">de {formatCurrency(metaFaturamento)}</p>
                     </div>
-                    <Progress value={Math.min((receitaTotal / metaFaturamento) * 100, 100)} className="h-3" />
+                    <Progress value={Math.min((totalFaturado / metaFaturamento) * 100, 100)} className="h-3" />
                     <p className="text-xs text-muted-foreground mt-1.5">
-                      {Math.round((receitaTotal / metaFaturamento) * 100)}% da meta — faltam {formatCurrency(Math.max(metaFaturamento - receitaTotal, 0))}
+                      {Math.round((totalFaturado / metaFaturamento) * 100)}% da meta — faltam {formatCurrency(Math.max(metaFaturamento - totalFaturado, 0))}
                     </p>
                   </>
                 ) : (
@@ -625,10 +659,9 @@ export default function Financeiro() {
                       <YAxis tick={{ fill: "hsl(0 0% 55%)", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                       <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
                       <Legend wrapperStyle={{ color: "hsl(0 0% 55%)" }} />
-                      <Bar dataKey="desenvolvimento" name="Desenvolvimento" fill="hsl(252 100% 64%)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="faturado" name="Faturado" fill="hsl(270 70% 62%)" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="recorrente" name="Recorrente" fill="hsl(187 100% 50%)" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="custos" name="Custos" fill="hsl(0 72% 51%)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="contratado" name="Contratado" fill="hsl(280 50% 65%)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>

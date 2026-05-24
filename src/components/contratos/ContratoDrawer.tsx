@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Check, Clock, AlertTriangle, FileText, DollarSign, Pencil, Trash2,
-  Save, X, MessageCircle, Mail, Loader2, ListChecks, RefreshCw,
+  Save, X, MessageCircle, Mail, Loader2, ListChecks, RefreshCw, Lock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,6 +78,16 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
   const [editRecDia, setEditRecDia] = useState("");
   const [editRecStatus, setEditRecStatus] = useState("ativo");
   const [savingRec, setSavingRec] = useState(false);
+
+  // Inline edit parcela
+  const [editingParcelaId, setEditingParcelaId] = useState<string | null>(null);
+  const [editParcelaValor, setEditParcelaValor] = useState("");
+  const [editParcelaVencimento, setEditParcelaVencimento] = useState("");
+  const [savingParcela, setSavingParcela] = useState(false);
+
+  // Confirm recorrência cascade update
+  const [confirmRecUpdate, setConfirmRecUpdate] = useState<{ recId: string; count: number; valor: number } | null>(null);
+
   const { toast } = useToast();
 
   // Editable fields
@@ -269,22 +279,66 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
     });
   }
 
-  async function handleSalvarRecorrencia(recId: string) {
+  async function handleSalvarParcela(parcelaId: string) {
+    setSavingParcela(true);
+    const { error } = await supabase.from("parcelas").update({
+      valor: parseBRL(editParcelaValor),
+      data_vencimento: editParcelaVencimento,
+    }).eq("id", parcelaId);
+    if (error) {
+      toast({ title: "Erro ao salvar parcela", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Parcela atualizada!" });
+      setEditingParcelaId(null);
+      if (contrato) fetchDetails(contrato.id);
+      onUpdate();
+    }
+    setSavingParcela(false);
+  }
+
+  async function handleSalvarRecorrencia(recId: string, novoValor: number) {
     setSavingRec(true);
     const isAtivo = editRecStatus === "ativo";
     const { error } = await supabase.from("recorrencias").update({
-      valor_mensal: parseBRL(editRecValor),
+      valor_mensal: novoValor,
       dia_vencimento: parseInt(editRecDia),
       ativo: isAtivo,
     }).eq("id", recId);
+    if (!error && contrato) {
+      const hoje = format(new Date(), "yyyy-MM-dd");
+      await supabase.from("parcelas")
+        .update({ valor: novoValor })
+        .eq("contrato_id", contrato.id)
+        .gte("data_vencimento", hoje)
+        .neq("status", "pago")
+        .neq("status", "confirmado");
+    }
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Recorrência atualizada!" });
+      toast({ title: "Recorrência e parcelas atualizadas!" });
       setEditingRecId(null);
+      setConfirmRecUpdate(null);
       if (contrato) { fetchDetails(contrato.id); onUpdate(); }
     }
     setSavingRec(false);
+  }
+
+  function initiateRecSave(recId: string) {
+    const novoValor = parseBRL(editRecValor);
+    const rec = recorrencias.find(r => r.id === recId);
+    const originalValor = rec ? Number(rec.valor_mensal) : novoValor;
+    if (novoValor !== originalValor) {
+      const hoje = format(new Date(), "yyyy-MM-dd");
+      const futurePendentes = parcelas.filter(p =>
+        !["pago", "confirmado"].includes(p.status) && p.data_vencimento >= hoje
+      );
+      if (futurePendentes.length > 0) {
+        setConfirmRecUpdate({ recId, count: futurePendentes.length, valor: novoValor });
+        return;
+      }
+    }
+    handleSalvarRecorrencia(recId, novoValor);
   }
 
   if (!contrato) return null;
@@ -446,50 +500,64 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
                   <p className="text-xs text-muted-foreground">Nenhuma parcela cadastrada.</p>
                 ) : (
                   <div className="space-y-2">
-                    {parcelas.map(p => (
-                      <div key={p.id} className="flex items-center gap-3 bg-secondary/20 rounded-lg p-3">
-                        {getParcelaIcon(p.status)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{formatCurrency(Number(p.valor))}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Vence: {format(new Date(p.data_vencimento + "T00:00:00"), "dd/MM/yyyy")}
-                            {p.data_pagamento && ` — Pago: ${format(new Date(p.data_pagamento + "T00:00:00"), "dd/MM/yyyy")}`}
-                          </p>
-                          {p.descricao && <p className="text-[10px] text-muted-foreground">{p.descricao}</p>}
+                    {parcelas.map(p => {
+                      const isPaid = ["pago", "confirmado"].includes(p.status);
+                      if (editingParcelaId === p.id) {
+                        return (
+                          <div key={p.id} className="bg-secondary/20 rounded-lg p-3 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Valor (R$)</Label>
+                                <CurrencyInput value={editParcelaValor} onChange={setEditParcelaValor} />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Vencimento</Label>
+                                <Input type="date" value={editParcelaVencimento} onChange={e => setEditParcelaVencimento(e.target.value)} className="h-9" />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingParcelaId(null)}>Cancelar</Button>
+                              <Button size="sm" className="h-7 text-xs gradient-primary text-primary-foreground" onClick={() => handleSalvarParcela(p.id)} disabled={savingParcela}>
+                                {savingParcela ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}Salvar
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={p.id} className="flex items-center gap-3 bg-secondary/20 rounded-lg p-3">
+                          {getParcelaIcon(p.status)}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{formatCurrency(Number(p.valor))}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Vence: {format(new Date(p.data_vencimento + "T00:00:00"), "dd/MM/yyyy")}
+                              {p.data_pagamento && ` — Pago: ${format(new Date(p.data_pagamento + "T00:00:00"), "dd/MM/yyyy")}`}
+                            </p>
+                            {p.descricao && <p className="text-[10px] text-muted-foreground">{p.descricao}</p>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {isPaid ? (
+                              <Lock className="h-3.5 w-3.5 text-muted-foreground opacity-40 mr-1" />
+                            ) : (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingParcelaId(p.id); setEditParcelaValor(String(p.valor)); setEditParcelaVencimento(p.data_vencimento); }}>
+                                <Pencil className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                            )}
+                            {p.status === "pendente" && (
+                              <Button size="sm" variant="outline" className="text-xs border-success/30 text-success hover:bg-success/10" onClick={() => confirmarPagamento(p.id)}>
+                                Confirmar
+                              </Button>
+                            )}
+                            {(p.status === "pendente" || p.status === "vencido") && (
+                              <Button size="sm" variant="outline" className="text-xs" onClick={() => handleCobrar(p)} disabled={cobrancaLoadingId === p.id} title={contrato.cliente_telefone ? "Enviar cobrança via WhatsApp" : contrato.cliente_email ? "Enviar cobrança por email" : "Sem contato cadastrado"}>
+                                {cobrancaLoadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : contrato.cliente_telefone ? <MessageCircle className="h-3 w-3" /> : <Mail className="h-3 w-3" />}
+                                <span className="ml-1">Cobrar</span>
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-1">
-                          {p.status === "pendente" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs border-success/30 text-success hover:bg-success/10"
-                              onClick={() => confirmarPagamento(p.id)}
-                            >
-                              Confirmar
-                            </Button>
-                          )}
-                          {(p.status === "pendente" || p.status === "vencido") && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs"
-                              onClick={() => handleCobrar(p)}
-                              disabled={cobrancaLoadingId === p.id}
-                              title={contrato.cliente_telefone ? "Enviar cobrança via WhatsApp" : contrato.cliente_email ? "Enviar cobrança por email" : "Sem contato cadastrado"}
-                            >
-                              {cobrancaLoadingId === p.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : contrato.cliente_telefone ? (
-                                <MessageCircle className="h-3 w-3" />
-                              ) : (
-                                <Mail className="h-3 w-3" />
-                              )}
-                              <span className="ml-1">Cobrar</span>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -526,7 +594,7 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
                             </div>
                             <div className="flex justify-end gap-2 pt-1">
                               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingRecId(null)}>Cancelar</Button>
-                              <Button size="sm" className="h-7 text-xs gradient-primary text-primary-foreground" onClick={() => handleSalvarRecorrencia(r.id)} disabled={savingRec}>
+                              <Button size="sm" className="h-7 text-xs gradient-primary text-primary-foreground" onClick={() => initiateRecSave(r.id)} disabled={savingRec}>
                                 {savingRec ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}Salvar
                               </Button>
                             </div>
@@ -574,6 +642,23 @@ export default function ContratoDrawer({ contrato, open, onClose, onUpdate }: Co
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmRecUpdate} onOpenChange={open => { if (!open) setConfirmRecUpdate(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar atualização</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso atualizará <strong>{confirmRecUpdate?.count}</strong> parcela{confirmRecUpdate?.count !== 1 ? "s" : ""} futura{confirmRecUpdate?.count !== 1 ? "s" : ""} não paga{confirmRecUpdate?.count !== 1 ? "s" : ""} para <strong>{confirmRecUpdate ? formatCurrency(confirmRecUpdate.valor) : ""}</strong>. Confirmar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmRecUpdate(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmRecUpdate && handleSalvarRecorrencia(confirmRecUpdate.recId, confirmRecUpdate.valor)} className="gradient-primary text-primary-foreground">
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
