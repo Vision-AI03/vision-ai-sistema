@@ -8,6 +8,22 @@ const corsHeaders = {
 
 const APIFY_BASE = "https://api.apify.com/v2";
 
+function extrairUsernames(googleItems: any[]): string[] {
+  const usernames: string[] = [];
+  const blocked = ["p", "reel", "stories", "explore", "accounts", "about", "help"];
+  for (const item of googleItems) {
+    for (const result of (item?.organicResults || [])) {
+      const url: string = result?.url || result?.link || "";
+      const match = url.match(/instagram\.com\/([^/?#]+)/);
+      const u = match?.[1]?.replace(/\/$/, "");
+      if (u && !blocked.includes(u) && !usernames.includes(u)) {
+        usernames.push(u);
+      }
+    }
+  }
+  return usernames;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -52,26 +68,17 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const termoBusca = `${nicho} ${cidade} site:instagram.com`;
 
-    // Metadados nos query params — sem payloadTemplate para evitar encoding corrompido
-    const webhookUrl =
-      `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
-      `?stage=google` +
-      `&extracao_id=${encodeURIComponent(extracao_id)}` +
-      `&cidade=${encodeURIComponent(cidade)}` +
-      `&nicho=${encodeURIComponent(nicho)}` +
-      `&quantidade=${quantidade}`;
-
-    // Cria o run via body JSON — webhook como campo do body, não query param
-    const googleRunRes = await fetch(
-      `${APIFY_BASE}/acts/apify~google-search-scraper/runs?token=${APIFY_TOKEN}`,
+    // ── ETAPA 1: Google Search síncrono (waitForFinish=80) ───────────────────
+    // Sem webhooks. Apify espera até 80s e retorna o resultado direto.
+    const googleRes = await fetch(
+      `${APIFY_BASE}/acts/apify~google-search-scraper/runs?token=${APIFY_TOKEN}&waitForFinish=80`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          queries: [termoBusca],
+          queries: termoBusca,
           resultsPerPage: Math.min(quantidade * 3, 100),
           maxPagesPerQuery: 1,
           languageCode: "pt",
@@ -80,44 +87,67 @@ Deno.serve(async (req) => {
       }
     );
 
-    const googleRun = await googleRunRes.json();
-    console.log("Apify Google Search response:", JSON.stringify(googleRun));
+    const googleRun = await googleRes.json();
+    console.log("Google run status:", googleRun?.data?.status, "dataset:", googleRun?.data?.defaultDatasetId);
 
-    const googleRunId = googleRun?.data?.id;
-    if (!googleRunId) {
-      throw new Error(`Falha ao iniciar Google Search: ${JSON.stringify(googleRun)}`);
+    const googleStatus = googleRun?.data?.status;
+    const googleDatasetId = googleRun?.data?.defaultDatasetId;
+
+    if (googleStatus !== "SUCCEEDED" || !googleDatasetId) {
+      throw new Error(
+        `Google Search não completou a tempo (status: ${googleStatus ?? "sem resposta"}). Tente novamente.`
+      );
     }
 
-    // Registra webhook separadamente via API de webhooks do Apify
-    const webhookRes = await fetch(
-      `${APIFY_BASE}/actor-runs/${googleRunId}/webhooks?token=${APIFY_TOKEN}`,
+    // ── ETAPA 2: Busca resultados e extrai usernames ─────────────────────────
+    const itemsRes = await fetch(
+      `${APIFY_BASE}/datasets/${googleDatasetId}/items?token=${APIFY_TOKEN}&limit=200`
+    );
+    const googleItems = await itemsRes.json();
+    const usernames = extrairUsernames(Array.isArray(googleItems) ? googleItems : []);
+    console.log(`Usernames extraídos: ${usernames.length}`);
+
+    if (usernames.length === 0) {
+      throw new Error("Nenhum perfil Instagram encontrado para essa busca. Tente outro nicho ou cidade.");
+    }
+
+    const usernamesToScrape = usernames.slice(0, Math.min(quantidade * 2, 50));
+
+    // ── ETAPA 3: Inicia Instagram Scraper assíncrono (sem webhook) ───────────
+    // Retorna imediatamente com o runId. O cliente vai checar via prospeccao-check.
+    const igRes = await fetch(
+      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs?token=${APIFY_TOKEN}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
-          requestUrl: webhookUrl,
-        }),
+        body: JSON.stringify({ usernames: usernamesToScrape }),
       }
     );
-    const webhookData = await webhookRes.json();
-    console.log("Webhook criado:", JSON.stringify(webhookData));
+    const igRun = await igRes.json();
+    const igRunId = igRun?.data?.id;
+    console.log("Instagram run id:", igRunId);
 
+    if (!igRunId) {
+      throw new Error(`Falha ao iniciar Instagram Scraper: ${JSON.stringify(igRun)}`);
+    }
+
+    // Salva o Instagram run ID para o cliente poder checar depois
     await supabase.from("extracoes").update({
-      apify_run_id: googleRunId,
+      apify_run_id: igRunId,
     }).eq("id", extracao_id);
 
     return new Response(
       JSON.stringify({
         sucesso: true,
-        google_run_id: googleRunId,
-        mensagem: "Extração iniciada! Os leads aparecerão no CRM em alguns minutos.",
+        ig_run_id: igRunId,
+        perfis_encontrados: usernames.length,
+        mensagem: "Google concluído. Instagram em processamento.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (err: any) {
-    console.error("Erro na extração:", err?.message);
+    console.error("Erro:", err?.message);
     await supabase.from("extracoes").update({
       status: "erro",
       erro_mensagem: err?.message || "Erro desconhecido",

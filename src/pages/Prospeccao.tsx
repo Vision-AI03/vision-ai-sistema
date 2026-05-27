@@ -58,6 +58,7 @@ type Extracao = {
   quantidade_extraida: number;
   status: "processando" | "concluido" | "erro";
   erro_mensagem?: string;
+  apify_run_id?: string;
 };
 
 export default function Prospeccao() {
@@ -91,6 +92,22 @@ export default function Prospeccao() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchExtracoes]);
+
+  // Polling a cada 30s para extrações com Instagram em andamento
+  useEffect(() => {
+    const comRunId = extracoes.filter(e => e.status === "processando" && e.apify_run_id);
+    if (comRunId.length === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const ext of comRunId) {
+        await supabase.functions.invoke("prospeccao-check", {
+          body: { extracao_id: ext.id },
+        });
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [extracoes]);
 
   const cidadeFinal = usarCidadeCustom ? cidadeCustom : cidade;
 
@@ -290,7 +307,7 @@ export default function Prospeccao() {
           {extraindo ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Extraindo leads... pode levar 2-4 min
+              Buscando no Google... aguarde até 1 min
             </>
           ) : (
             <>
@@ -302,7 +319,7 @@ export default function Prospeccao() {
 
         {extraindo && (
           <p className="text-xs text-muted-foreground">
-            🔍 Buscando perfis no Google → 📸 Extraindo bios do Instagram → 📱 Filtrando WhatsApps → 💾 Salvando no CRM
+            🔍 Buscando perfis no Google (etapa 1 de 2). O Instagram será processado em background após concluir.
           </p>
         )}
       </div>
