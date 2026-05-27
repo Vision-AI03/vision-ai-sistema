@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const termoBusca = `${nicho} ${cidade} site:instagram.com`;
 
-    // Metadados passados como query params na URL do webhook — evita JSON aninhado corrompido
+    // Metadados nos query params — sem payloadTemplate para evitar encoding corrompido
     const webhookUrl =
       `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
       `?stage=google` +
@@ -64,31 +64,21 @@ Deno.serve(async (req) => {
       `&nicho=${encodeURIComponent(nicho)}` +
       `&quantidade=${quantidade}`;
 
-    // payloadTemplate simples — só variáveis do Apify, sem JSON aninhado
-    const payloadTemplate = `{"eventType":"{{eventType}}","runId":"{{runId}}","datasetId":"{{defaultDatasetId}}"}`;
-
-    const webhooks = JSON.stringify([{
-      eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
-      requestUrl: webhookUrl,
-      payloadTemplate,
-    }]);
-
-    const googleUrl =
-      `${APIFY_BASE}/acts/apify~google-search-scraper/runs` +
-      `?token=${APIFY_TOKEN}` +
-      `&webhooks=${encodeURIComponent(webhooks)}`;
-
-    const googleRunRes = await fetch(googleUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        queries: [termoBusca],
-        resultsPerPage: Math.min(quantidade * 3, 100),
-        maxPagesPerQuery: 1,
-        languageCode: "pt",
-        countryCode: "BR",
-      }),
-    });
+    // Cria o run via body JSON — webhook como campo do body, não query param
+    const googleRunRes = await fetch(
+      `${APIFY_BASE}/acts/apify~google-search-scraper/runs?token=${APIFY_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          queries: [termoBusca],
+          resultsPerPage: Math.min(quantidade * 3, 100),
+          maxPagesPerQuery: 1,
+          languageCode: "pt",
+          countryCode: "BR",
+        }),
+      }
+    );
 
     const googleRun = await googleRunRes.json();
     console.log("Apify Google Search response:", JSON.stringify(googleRun));
@@ -97,6 +87,21 @@ Deno.serve(async (req) => {
     if (!googleRunId) {
       throw new Error(`Falha ao iniciar Google Search: ${JSON.stringify(googleRun)}`);
     }
+
+    // Registra webhook separadamente via API de webhooks do Apify
+    const webhookRes = await fetch(
+      `${APIFY_BASE}/actor-runs/${googleRunId}/webhooks?token=${APIFY_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+          requestUrl: webhookUrl,
+        }),
+      }
+    );
+    const webhookData = await webhookRes.json();
+    console.log("Webhook criado:", JSON.stringify(webhookData));
 
     await supabase.from("extracoes").update({
       apify_run_id: googleRunId,

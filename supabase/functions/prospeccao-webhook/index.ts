@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // Metadados chegam via query params na URL
+  // Metadados chegam via query params
   const url = new URL(req.url);
   const stage = url.searchParams.get("stage") || "";
   const extracao_id = url.searchParams.get("extracao_id") || "";
@@ -52,10 +52,13 @@ Deno.serve(async (req) => {
     return new Response("invalid json", { status: 400 });
   }
 
-  const { eventType, datasetId } = payload;
-  console.log(`Webhook recebido: stage=${stage}, eventType=${eventType}, extracao_id=${extracao_id}`);
+  // Apify envia o payload padrão — datasetId está em resource.defaultDatasetId
+  const eventType: string = payload?.eventType || "";
+  const datasetId: string = payload?.resource?.defaultDatasetId || payload?.datasetId || "";
 
-  if (eventType?.includes("FAILED")) {
+  console.log(`Webhook: stage=${stage}, eventType=${eventType}, extracao_id=${extracao_id}, datasetId=${datasetId}`);
+
+  if (eventType.includes("FAILED")) {
     await supabase.from("extracoes").update({
       status: "erro",
       erro_mensagem: `Apify run falhou na etapa: ${stage}`,
@@ -63,7 +66,10 @@ Deno.serve(async (req) => {
     return new Response("ok", { status: 200 });
   }
 
-  if (!datasetId) return new Response("datasetId missing", { status: 400 });
+  if (!datasetId) {
+    console.error("datasetId ausente no payload:", JSON.stringify(payload));
+    return new Response("datasetId missing", { status: 400 });
+  }
 
   // ─── ETAPA GOOGLE CONCLUÍDA → inicia Instagram Scraper ──────────────────
   if (stage === "google") {
@@ -73,8 +79,8 @@ Deno.serve(async (req) => {
     for (const item of googleItems) {
       const organicResults = item?.organicResults || [];
       for (const result of organicResults) {
-        const url: string = result?.url || result?.link || "";
-        const match = url.match(/instagram\.com\/([^/?#]+)/);
+        const resultUrl: string = result?.url || result?.link || "";
+        const match = resultUrl.match(/instagram\.com\/([^/?#]+)/);
         if (match && match[1] && !["p", "reel", "stories", "explore", "accounts"].includes(match[1])) {
           const username = match[1].replace(/\/$/, "");
           if (username && !instagramUsernames.includes(username)) {
@@ -105,34 +111,39 @@ Deno.serve(async (req) => {
       `&nicho=${encodeURIComponent(nicho)}` +
       `&quantidade=${quantidade}`;
 
-    const payloadTemplate = `{"eventType":"{{eventType}}","runId":"{{runId}}","datasetId":"{{defaultDatasetId}}"}`;
-
-    const webhooks = JSON.stringify([{
-      eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
-      requestUrl: webhookUrl,
-      payloadTemplate,
-    }]);
-
-    const igUrl =
-      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs` +
-      `?token=${APIFY_TOKEN}` +
-      `&webhooks=${encodeURIComponent(webhooks)}`;
-
-    const igRunRes = await fetch(igUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usernames: usernamesToScrape }),
-    });
-
+    // Inicia Instagram scraper
+    const igRunRes = await fetch(
+      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs?token=${APIFY_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usernames: usernamesToScrape }),
+      }
+    );
     const igRun = await igRunRes.json();
     console.log("Instagram scraper response:", JSON.stringify(igRun));
 
-    if (!igRun?.data?.id) {
+    const igRunId = igRun?.data?.id;
+    if (!igRunId) {
       await supabase.from("extracoes").update({
         status: "erro",
         erro_mensagem: "Falha ao iniciar Instagram Scraper",
       }).eq("id", extracao_id);
+      return new Response("ok", { status: 200 });
     }
+
+    // Registra webhook para o run do Instagram
+    await fetch(
+      `${APIFY_BASE}/actor-runs/${igRunId}/webhooks?token=${APIFY_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+          requestUrl: webhookUrl,
+        }),
+      }
+    );
 
     return new Response("ok", { status: 200 });
   }
