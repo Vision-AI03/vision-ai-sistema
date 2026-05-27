@@ -23,6 +23,7 @@ import Propostas from "./pages/Propostas";
 import Reunioes from "./pages/Reunioes";
 import Automacoes from "./pages/Automacoes";
 import Metricas from "./pages/Metricas";
+import Prospeccao from "./pages/Prospeccao";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/propostas" element={<Propostas />} />
         <Route path="/reunioes" element={<Reunioes />} />
         <Route path="/metricas" element={<Metricas />} />
+        <Route path="/prospeccao" element={<Prospeccao />} />
         <Route path="/configuracoes/automacoes" element={<Automacoes />} />
         <Route path="/configuracoes/credenciais" element={<Credenciais />} />
         <Route path="/configuracoes/backup" element={<Backup />} />

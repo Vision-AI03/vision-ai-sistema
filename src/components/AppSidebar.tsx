@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, MessageSquare, FileText, DollarSign, LogOut,
   KeyRound, CheckSquare, DatabaseBackup, Webhook, BarChart2, Zap,
-  CalendarDays, ScrollText, BrainCircuit,
+  CalendarDays, ScrollText, BrainCircuit, Target,
 } from "lucide-react";
 import logoVision from "@/assets/logo_vision_transparent_transparent.png";
 import { NavLink } from "@/components/NavLink";
@@ -22,6 +22,7 @@ import {
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "CRM", url: "/crm", icon: Users },
+  { title: "Prospecção", url: "/prospeccao", icon: Target },
   { title: "Comunicações", url: "/comunicacoes", icon: MessageSquare },
   { title: "Propostas", url: "/propostas", icon: ScrollText },
   { title: "Contratos", url: "/contratos", icon: FileText },
