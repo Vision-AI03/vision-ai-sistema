@@ -1,0 +1,202 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const APIFY_BASE = "https://api.apify.com/v2";
+
+function extrairTelefone(texto: string): string | null {
+  if (!texto) return null;
+  const matches = texto.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9\s?)?\d{4}[-.\s]?\d{4}/g);
+  if (!matches) return null;
+  const raw = matches[0].replace(/\D/g, "");
+  if (raw.length >= 10 && raw.length <= 13) {
+    const digits = raw.startsWith("55") && raw.length > 11 ? raw : `55${raw}`;
+    return digits;
+  }
+  return null;
+}
+
+function extrairEmail(texto: string): string | null {
+  if (!texto) return null;
+  const match = texto.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  return match ? match[0] : null;
+}
+
+async function buscarDataset(datasetId: string, apifyToken: string): Promise<any[]> {
+  const res = await fetch(`${APIFY_BASE}/datasets/${datasetId}/items?token=${apifyToken}&limit=200`);
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200 });
+  }
+
+  const APIFY_TOKEN = Deno.env.get("APIFY_TOKEN")!;
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  let payload: any;
+  try {
+    payload = await req.json();
+  } catch {
+    return new Response("invalid json", { status: 400 });
+  }
+
+  const { eventType, datasetId, stage, extracao_id, cidade, nicho, quantidade } = payload;
+
+  if (eventType?.includes("FAILED")) {
+    await supabase.from("extracoes").update({
+      status: "erro",
+      erro_mensagem: `Apify run falhou na etapa: ${stage}`,
+    }).eq("id", extracao_id);
+    return new Response("ok", { status: 200 });
+  }
+
+  if (!datasetId) return new Response("datasetId missing", { status: 400 });
+
+  // ─── ETAPA GOOGLE CONCLUÍDA → inicia Instagram Scraper ──────────────────
+  if (stage === "google") {
+    const googleItems = await buscarDataset(datasetId, APIFY_TOKEN);
+    const instagramUsernames: string[] = [];
+
+    for (const item of googleItems) {
+      const organicResults = item?.organicResults || [];
+      for (const result of organicResults) {
+        const url: string = result?.url || result?.link || "";
+        const match = url.match(/instagram\.com\/([^/?#]+)/);
+        if (match && match[1] && !["p", "reel", "stories", "explore", "accounts"].includes(match[1])) {
+          const username = match[1].replace(/\/$/, "");
+          if (username && !instagramUsernames.includes(username)) {
+            instagramUsernames.push(username);
+          }
+        }
+      }
+    }
+
+    if (instagramUsernames.length === 0) {
+      await supabase.from("extracoes").update({
+        status: "erro",
+        erro_mensagem: "Nenhum perfil Instagram encontrado para essa busca",
+      }).eq("id", extracao_id);
+      return new Response("ok", { status: 200 });
+    }
+
+    const usernamesToScrape = instagramUsernames.slice(0, Math.min(quantidade * 2, 50));
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/prospeccao-webhook`;
+
+    const igRunRes = await fetch(
+      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs?token=${APIFY_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usernames: usernamesToScrape,
+          webhooks: [{
+            eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+            requestUrl: webhookUrl,
+            headersTemplate: `{"x-webhook-secret": "vision-ai-secret"}`,
+            payloadTemplate: JSON.stringify({
+              eventType: "{{eventType}}",
+              runId: "{{runId}}",
+              datasetId: "{{defaultDatasetId}}",
+              stage: "instagram",
+              extracao_id,
+              cidade,
+              nicho,
+              quantidade,
+            }),
+          }],
+        }),
+      }
+    );
+
+    const igRun = await igRunRes.json();
+    if (!igRun?.data?.id) {
+      await supabase.from("extracoes").update({
+        status: "erro",
+        erro_mensagem: "Falha ao iniciar Instagram Scraper",
+      }).eq("id", extracao_id);
+    }
+
+    return new Response("ok", { status: 200 });
+  }
+
+  // ─── ETAPA INSTAGRAM CONCLUÍDA → processa perfis e insere leads ─────────
+  if (stage === "instagram") {
+    const igProfiles = await buscarDataset(datasetId, APIFY_TOKEN);
+    const leadsInseridos: string[] = [];
+    let count = 0;
+
+    for (const profile of igProfiles) {
+      if (count >= quantidade) break;
+
+      const bio: string = profile?.biography || profile?.bio || "";
+      const telefone =
+        extrairTelefone(bio) ||
+        extrairTelefone(profile?.businessPhoneNumber || "") ||
+        extrairTelefone(profile?.publicPhoneNumber || "");
+
+      if (!telefone) continue;
+
+      const email =
+        extrairEmail(bio) ||
+        profile?.businessEmail ||
+        profile?.publicEmail ||
+        null;
+
+      const nome = profile?.fullName || profile?.username || "Sem nome";
+      const instagram_url = `https://instagram.com/${profile?.username || ""}`;
+      const site = profile?.externalUrl || profile?.websiteUrl || null;
+
+      const { data: existente } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("telefone", telefone)
+        .maybeSingle();
+
+      if (existente) continue;
+
+      const { data: novoLead, error: insertError } = await supabase
+        .from("leads")
+        .insert({
+          nome,
+          empresa: nome,
+          email,
+          telefone,
+          instagram_url,
+          site_empresa: site,
+          segmento: nicho,
+          origem: "instagram_scraping",
+          estagio_fonte: "automatico",
+          status: "novo",
+          origem_metadata: {
+            cidade,
+            nicho,
+            username: profile?.username,
+            followers: profile?.followersCount,
+            extracao_id,
+          },
+        })
+        .select("id")
+        .single();
+
+      if (!insertError && novoLead) {
+        leadsInseridos.push(novoLead.id);
+        count++;
+      }
+    }
+
+    await supabase.from("extracoes").update({
+      status: "concluido",
+      quantidade_extraida: leadsInseridos.length,
+      leads_ids: leadsInseridos,
+    }).eq("id", extracao_id);
+
+    return new Response("ok", { status: 200 });
+  }
+
+  return new Response("stage desconhecido", { status: 400 });
+});

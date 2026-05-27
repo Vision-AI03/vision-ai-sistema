@@ -123,8 +123,8 @@ export default function Prospeccao() {
       if (fnError) throw new Error(fnError.message);
 
       toast({
-        title: "✅ Extração concluída!",
-        description: "Os leads já estão disponíveis no CRM.",
+        title: "✅ Extração iniciada!",
+        description: "Os leads aparecerão no CRM automaticamente em 3-5 minutos.",
       });
     } catch (err: any) {
       toast({
