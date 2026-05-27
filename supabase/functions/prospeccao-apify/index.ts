@@ -53,32 +53,36 @@ Deno.serve(async (req) => {
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/prospeccao-webhook`;
     const termoBusca = `${nicho} ${cidade} site:instagram.com`;
 
-    // Webhook passado como query param na URL (padrão correto da API do Apify)
-    const googleUrl = `${APIFY_BASE}/acts/apify~google-search-scraper/runs` +
+    // Metadados passados como query params na URL do webhook — evita JSON aninhado corrompido
+    const webhookUrl =
+      `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
+      `?stage=google` +
+      `&extracao_id=${encodeURIComponent(extracao_id)}` +
+      `&cidade=${encodeURIComponent(cidade)}` +
+      `&nicho=${encodeURIComponent(nicho)}` +
+      `&quantidade=${quantidade}`;
+
+    // payloadTemplate simples — só variáveis do Apify, sem JSON aninhado
+    const payloadTemplate = `{"eventType":"{{eventType}}","runId":"{{runId}}","datasetId":"{{defaultDatasetId}}"}`;
+
+    const webhooks = JSON.stringify([{
+      eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+      requestUrl: webhookUrl,
+      payloadTemplate,
+    }]);
+
+    const googleUrl =
+      `${APIFY_BASE}/acts/apify~google-search-scraper/runs` +
       `?token=${APIFY_TOKEN}` +
-      `&webhooks=${encodeURIComponent(JSON.stringify([{
-        eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
-        requestUrl: webhookUrl,
-        payloadTemplate: JSON.stringify({
-          eventType: "{{eventType}}",
-          runId: "{{runId}}",
-          datasetId: "{{defaultDatasetId}}",
-          stage: "google",
-          extracao_id,
-          cidade,
-          nicho,
-          quantidade,
-        }),
-      }]))}`;
+      `&webhooks=${encodeURIComponent(webhooks)}`;
 
     const googleRunRes = await fetch(googleUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        queries: [termoBusca],   // ARRAY, não string
+        queries: [termoBusca],
         resultsPerPage: Math.min(quantidade * 3, 100),
         maxPagesPerQuery: 1,
         languageCode: "pt",

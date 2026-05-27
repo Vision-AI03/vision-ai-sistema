@@ -37,6 +37,14 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  // Metadados chegam via query params na URL
+  const url = new URL(req.url);
+  const stage = url.searchParams.get("stage") || "";
+  const extracao_id = url.searchParams.get("extracao_id") || "";
+  const cidade = url.searchParams.get("cidade") || "";
+  const nicho = url.searchParams.get("nicho") || "";
+  const quantidade = parseInt(url.searchParams.get("quantidade") || "0");
+
   let payload: any;
   try {
     payload = await req.json();
@@ -44,7 +52,8 @@ Deno.serve(async (req) => {
     return new Response("invalid json", { status: 400 });
   }
 
-  const { eventType, datasetId, stage, extracao_id, cidade, nicho, quantidade } = payload;
+  const { eventType, datasetId } = payload;
+  console.log(`Webhook recebido: stage=${stage}, eventType=${eventType}, extracao_id=${extracao_id}`);
 
   if (eventType?.includes("FAILED")) {
     await supabase.from("extracoes").update({
@@ -75,6 +84,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`Usernames encontrados: ${instagramUsernames.length}`);
+
     if (instagramUsernames.length === 0) {
       await supabase.from("extracoes").update({
         status: "erro",
@@ -85,35 +96,37 @@ Deno.serve(async (req) => {
 
     const usernamesToScrape = instagramUsernames.slice(0, Math.min(quantidade * 2, 50));
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/prospeccao-webhook`;
 
-    const igRunRes = await fetch(
-      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs?token=${APIFY_TOKEN}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usernames: usernamesToScrape,
-          webhooks: [{
-            eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
-            requestUrl: webhookUrl,
-            headersTemplate: `{"x-webhook-secret": "vision-ai-secret"}`,
-            payloadTemplate: JSON.stringify({
-              eventType: "{{eventType}}",
-              runId: "{{runId}}",
-              datasetId: "{{defaultDatasetId}}",
-              stage: "instagram",
-              extracao_id,
-              cidade,
-              nicho,
-              quantidade,
-            }),
-          }],
-        }),
-      }
-    );
+    const webhookUrl =
+      `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
+      `?stage=instagram` +
+      `&extracao_id=${encodeURIComponent(extracao_id)}` +
+      `&cidade=${encodeURIComponent(cidade)}` +
+      `&nicho=${encodeURIComponent(nicho)}` +
+      `&quantidade=${quantidade}`;
+
+    const payloadTemplate = `{"eventType":"{{eventType}}","runId":"{{runId}}","datasetId":"{{defaultDatasetId}}"}`;
+
+    const webhooks = JSON.stringify([{
+      eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+      requestUrl: webhookUrl,
+      payloadTemplate,
+    }]);
+
+    const igUrl =
+      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs` +
+      `?token=${APIFY_TOKEN}` +
+      `&webhooks=${encodeURIComponent(webhooks)}`;
+
+    const igRunRes = await fetch(igUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: usernamesToScrape }),
+    });
 
     const igRun = await igRunRes.json();
+    console.log("Instagram scraper response:", JSON.stringify(igRun));
+
     if (!igRun?.data?.id) {
       await supabase.from("extracoes").update({
         status: "erro",
@@ -188,6 +201,8 @@ Deno.serve(async (req) => {
         count++;
       }
     }
+
+    console.log(`Leads inseridos: ${leadsInseridos.length}`);
 
     await supabase.from("extracoes").update({
       status: "concluido",
