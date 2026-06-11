@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
+import Hoje from "./pages/Hoje";
 import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
 import Comunicacoes from "./pages/Comunicacoes";
@@ -59,7 +60,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Hoje />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/crm" element={<CRM />} />
         <Route path="/comunicacoes" element={<Comunicacoes />} />
         <Route path="/contratos" element={<Contratos />} />
