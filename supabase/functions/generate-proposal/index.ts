@@ -1,12 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaude, MODEL_SONNET } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 const TIPO_SERVICO_LABELS: Record<string, string> = {
   agente_ia: "Agente de IA (automação com LLMs, chatbots inteligentes, assistentes virtuais)",
@@ -39,14 +38,6 @@ Deno.serve(async (req) => {
   if (authError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -205,21 +196,12 @@ Retorne APENAS o HTML completo começando com <!DOCTYPE html> e terminando com <
 O documento deve ter no mínimo 8 seções visuais bem definidas, ser persuasivo, profissional e específico para o nicho/serviço informado.`;
 
   try {
-    const aiRes = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.6,
-      }),
+    const conteudo = await callClaude({
+      model: MODEL_SONNET,
+      prompt,
+      temperature: 0.6,
+      maxTokens: 8192,
     });
-
-    const aiData = await aiRes.json();
-    const conteudo = aiData.choices?.[0]?.message?.content || "";
 
     if (!conteudo) {
       throw new Error("AI returned empty response");

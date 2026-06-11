@@ -1,12 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaude, MODEL_HAIKU } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -61,14 +60,6 @@ Deno.serve(async (req) => {
 
   const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
   const APIFY_API_KEY = Deno.env.get("APIFY_API_KEY");
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
 
   const enrichmentData: Record<string, unknown> = {};
 
@@ -279,24 +270,15 @@ Retorne um JSON com:
 Retorne APENAS o JSON, sem markdown.`;
 
   try {
-    const aiRes = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-      }),
+    const aiContent = await callClaude({
+      model: MODEL_HAIKU,
+      prompt,
+      temperature: 0.3,
     });
 
-    const aiData = await aiRes.json();
-    const aiContent = aiData.choices?.[0]?.message?.content || "";
-
-    // Parse JSON response
-    const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+    // Strip eventuais cercas ```json antes de extrair o objeto
+    const cleaned = aiContent.replace(/```json\s*/gi, "").replace(/```/g, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const analysis = JSON.parse(jsonMatch[0]);
 

@@ -1,12 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaude, MODEL_SONNET } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -73,14 +72,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const results: { id: string; success: boolean; error?: string }[] = [];
 
     // Process in batches of 5
@@ -127,31 +118,15 @@ DADOS DO CONTATO:
 - Cargo: ${contato.cargo || "Não informado"}
 ${assuntoBase ? `\nASSUNTO BASE PARA ADAPTAR: ${assuntoBase}` : ""}`;
 
-          const aiRes = await fetch(AI_GATEWAY_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-3-flash-preview",
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-              ],
-              temperature: 0.7,
-            }),
+          const aiContent = await callClaude({
+            model: MODEL_SONNET,
+            system: systemPrompt,
+            prompt: userPrompt,
+            temperature: 0.7,
           });
 
-          if (!aiRes.ok) {
-            if (aiRes.status === 429) throw new Error("Rate limit exceeded");
-            if (aiRes.status === 402) throw new Error("Payment required");
-            throw new Error(`AI error: ${aiRes.status}`);
-          }
-
-          const aiData = await aiRes.json();
-          const aiContent = aiData.choices?.[0]?.message?.content || "";
-          const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+          const cleaned = aiContent.replace(/```json\s*/gi, "").replace(/```/g, "");
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
 
           if (!jsonMatch) throw new Error("AI did not return valid JSON");
 

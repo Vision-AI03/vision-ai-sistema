@@ -30,4 +30,19 @@ Registro de decisões arquiteturais (ADR enxuto). Ordem cronológica.
 
 **Contexto:** Desenvolvimento estava acoplado ao Lovable (gateway de IA em `ai.gateway.lovable.dev` e workflow visual). Migração para Claude Code dá controle total sobre código, custos de IA e deploy.
 
-**Decisão:** Desenvolvimento 100% via Claude Code; Edge Functions chamam `api.anthropic.com` diretamente (`ANTHROPIC_API_KEY` em secrets). Frontend continua React/Vite/Tailwind/shadcn, deploy Vercel via GitHub.
+**Decisão:** Desenvolvimento 100% via Claude Code; Edge Functions chamam `api.anthropic.com` diretamente (`CLAUDE_API_KEY` em secrets). Frontend continua React/Vite/Tailwind/shadcn, deploy Vercel via GitHub.
+
+---
+
+## ADR-004 — Migração de IA para API Anthropic direta (Haiku/Sonnet)
+
+**Data:** 2026-06-10
+
+**Contexto:** Após a saída do Lovable (ADR-003), 9 Edge Functions usavam o gateway Lovable (`ai.gateway.lovable.dev`, modelo `google/gemini-3-flash-preview`) e 2 chamavam Gemini direto (`generativelanguage.googleapis.com`, `gemini-2.0-flash`). Manter 2 provedores aumenta a superfície de erro, custo e dependência externa; consolidar em Anthropic alinha com o resto do dev (Claude Code) e dá controle de modelo/preço por chamada.
+
+**Decisão:** Todas as 11 funções de IA passam a chamar `api.anthropic.com/v1/messages` via helper compartilhado `supabase/functions/_shared/anthropic.ts` (`callClaude`, `callClaudeMessages`, `callClaudeWithTool`). Mapeamento de modelos:
+
+- **Haiku (`claude-haiku-4-5-20251001`)** — classificação/extração, ~10x mais barato: `enrich-lead`, `analyze-lead-stage`, `parse-pdf-contacts`, `extract-contract-data`, `generate-onboarding-tasks`.
+- **Sonnet (`claude-sonnet-4-6`)** — geração de texto longo/HTML/contratos: `generate-email`, `generate-niche-emails`, `generate-proposal`, `fill-contract`, `fill-contract-model`, `generate-weekly-report`.
+
+PDFs migrados de `image_url` (formato OpenAI) para `document` block (formato Anthropic nativo). Tool use migrado de `function`/`tool_calls` (OpenAI) para `tool_use` block (Anthropic). Secret único: `CLAUDE_API_KEY`. Lovable e Gemini removidos.

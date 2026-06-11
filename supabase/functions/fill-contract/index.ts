@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callClaudeMessages, callClaudeWithTool, MODEL_SONNET } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +11,6 @@ serve(async (req) => {
 
   try {
     const { messages, template_content, action } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     let systemPrompt = "";
 
@@ -42,88 +41,47 @@ IMPORTANTE: Ao extrair dados de uma mensagem do usuário, use tool calling para 
       systemPrompt = `Você é um assistente que extrai dados estruturados de mensagens sobre contratos. Extraia todos os dados possíveis da mensagem do usuário e retorne usando a função extract_contract_data. Responda em português brasileiro.`;
     }
 
-    const body: any = {
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages,
-      ],
-    };
-
     if (action === "extract_data") {
-      body.tools = [
-        {
-          type: "function",
-          function: {
-            name: "extract_contract_data",
-            description: "Extrai dados estruturados de uma mensagem sobre contrato",
-            parameters: {
-              type: "object",
-              properties: {
-                nome_cliente: { type: "string", description: "Nome completo do cliente" },
-                cnpj_cpf: { type: "string", description: "CNPJ ou CPF do cliente" },
-                email_cliente: { type: "string", description: "Email do cliente" },
-                telefone_cliente: { type: "string", description: "Telefone do cliente" },
-                empresa: { type: "string", description: "Nome da empresa do cliente" },
-                endereco: { type: "string", description: "Endereço do cliente" },
-                valor_total: { type: "number", description: "Valor total do contrato" },
-                numero_parcelas: { type: "integer", description: "Número de parcelas" },
-                valor_parcela: { type: "number", description: "Valor de cada parcela" },
-                valor_recorrente: { type: "number", description: "Valor da mensalidade recorrente" },
-                tipo_pagamento: { type: "string", enum: ["avista", "parcelado", "recorrente"] },
-                descricao_servico: { type: "string", description: "Descrição do serviço contratado" },
-                data_inicio: { type: "string", description: "Data de início do contrato" },
-                prazo_meses: { type: "integer", description: "Prazo do contrato em meses" },
-              },
-              required: ["nome_cliente"],
-              additionalProperties: false,
+      const extractedData = await callClaudeWithTool({
+        model: MODEL_SONNET,
+        system: systemPrompt,
+        messages,
+        tool: {
+          name: "extract_contract_data",
+          description: "Extrai dados estruturados de uma mensagem sobre contrato",
+          input_schema: {
+            type: "object",
+            properties: {
+              nome_cliente: { type: "string", description: "Nome completo do cliente" },
+              cnpj_cpf: { type: "string", description: "CNPJ ou CPF do cliente" },
+              email_cliente: { type: "string", description: "Email do cliente" },
+              telefone_cliente: { type: "string", description: "Telefone do cliente" },
+              empresa: { type: "string", description: "Nome da empresa do cliente" },
+              endereco: { type: "string", description: "Endereço do cliente" },
+              valor_total: { type: "number", description: "Valor total do contrato" },
+              numero_parcelas: { type: "integer", description: "Número de parcelas" },
+              valor_parcela: { type: "number", description: "Valor de cada parcela" },
+              valor_recorrente: { type: "number", description: "Valor da mensalidade recorrente" },
+              tipo_pagamento: { type: "string", enum: ["avista", "parcelado", "recorrente"] },
+              descricao_servico: { type: "string", description: "Descrição do serviço contratado" },
+              data_inicio: { type: "string", description: "Data de início do contrato" },
+              prazo_meses: { type: "integer", description: "Prazo do contrato em meses" },
             },
+            required: ["nome_cliente"],
           },
         },
-      ];
-      body.tool_choice = { type: "function", function: { name: "extract_contract_data" } };
-    }
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit excedido. Tente novamente em alguns segundos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+      return new Response(JSON.stringify({ data: extractedData }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const result = await response.json();
-    
-    if (action === "extract_data") {
-      const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall) {
-        const extractedData = JSON.parse(toolCall.function.arguments);
-        return new Response(JSON.stringify({ data: extractedData }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
-    const content = result.choices?.[0]?.message?.content || "";
+    const content = await callClaudeMessages({
+      model: MODEL_SONNET,
+      system: systemPrompt,
+      messages,
+      maxTokens: 8192,
+    });
     return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

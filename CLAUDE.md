@@ -14,7 +14,7 @@ Sistema de gestão interno da Vision AI (agência de IA, founder solo: Wesley).
 ## Stack
 - Frontend: React 18 + Vite + TypeScript + Tailwind + shadcn/ui (Radix), TanStack Query, dnd-kit (Kanban). Desenvolvimento 100% via Claude Code.
 - Backend: Supabase (Postgres + RLS + Edge Functions Deno + pg_cron).
-- IA nas Edge Functions: API Anthropic direta (`api.anthropic.com`), key em `ANTHROPIC_API_KEY` via secrets do Supabase. Modelos: `claude-haiku` para classificação/triagem, `claude-sonnet` para geração.
+- IA nas Edge Functions: API Anthropic direta (`api.anthropic.com`), key em `CLAUDE_API_KEY` via secrets do Supabase. Modelos: `claude-haiku` para classificação/triagem, `claude-sonnet` para geração.
 - Email: Resend (+ resend-webhook para tracking).
 - Prospecção: Apify (Google Search Scraper + Instagram Profile Scraper) via `prospeccao-apify` + `prospeccao-webhook` (arquitetura assíncrona por webhook — NÃO usar polling síncrono, dá timeout).
 - WhatsApp: UazAPI (webhook em `whatsapp-webhook`).

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaudeMessages, MODEL_HAIKU } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,9 +76,6 @@ serve(async (req) => {
       }
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const today = new Date().toISOString().split("T")[0];
 
     const systemPrompt = `Você é um gerente de projetos especialista em entregas de soluções de IA e automação para empresas brasileiras.
@@ -117,42 +115,23 @@ Gere tarefas de onboarding com datas precisas e adequadas para este projeto.`,
       },
     ];
 
-    // Include PDF as multimodal input if available
+    // Include PDF as multimodal input if available (formato Anthropic: document block)
     if (pdfText) {
       userMessageContent.push({
-        type: "image_url",
-        image_url: {
-          url: `data:application/pdf;base64,${pdfText}`,
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: pdfText,
         },
       });
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessageContent },
-        ],
-      }),
+    const content = await callClaudeMessages({
+      model: MODEL_HAIKU,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessageContent }],
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content || "";
 
     // Parse AI JSON response
     let tarefasData: { tarefas: Array<{ titulo: string; descricao: string; prioridade: string; data_vencimento: string }> };

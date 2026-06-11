@@ -1,12 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaude, MODEL_SONNET } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -57,14 +56,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const prompt = `Você é um especialista em vendas da Vision AI, uma agência de inteligência artificial que cria agentes IA, automações e sistemas personalizados para empresas.
 
 Gere um email de prospecção frio e personalizado para este lead, usando todos os dados enriquecidos disponíveis.
@@ -99,23 +90,14 @@ Retorne um JSON com:
 Retorne APENAS o JSON, sem markdown.`;
 
   try {
-    const aiRes = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-      }),
+    const aiContent = await callClaude({
+      model: MODEL_SONNET,
+      prompt,
+      temperature: 0.7,
     });
 
-    const aiData = await aiRes.json();
-    const aiContent = aiData.choices?.[0]?.message?.content || "";
-
-    const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+    const cleaned = aiContent.replace(/```json\s*/gi, "").replace(/```/g, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const emailDraft = JSON.parse(jsonMatch[0]);
 

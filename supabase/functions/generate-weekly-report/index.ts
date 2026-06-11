@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaude, MODEL_SONNET } from "../_shared/anthropic.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -155,23 +156,18 @@ Gere o relatório com as seguintes seções em Markdown:
 
 Responda APENAS com o relatório em Markdown, sem texto adicional antes ou depois.`;
 
-  // Call Gemini Flash (fast + cheap for weekly report)
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!geminiKey) throw new Error("GEMINI_API_KEY não configurada");
-
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 4000 },
-      }),
-    }
-  );
-  const geminiData = await geminiRes.json();
-  const relatorioMarkdown = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Relatório não disponível.";
+  let relatorioMarkdown: string;
+  try {
+    relatorioMarkdown = await callClaude({
+      model: MODEL_SONNET,
+      prompt,
+      temperature: 0.4,
+      maxTokens: 4000,
+    });
+  } catch (err) {
+    console.error("Anthropic error in weekly report:", err);
+    relatorioMarkdown = "Relatório não disponível.";
+  }
 
   // Extract executive summary (first section)
   const resumoMatch = relatorioMarkdown.match(/## 📊 Resumo Executivo\n([\s\S]*?)(?=\n##|$)/);

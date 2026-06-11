@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callClaude, MODEL_HAIKU } from "../_shared/anthropic.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -87,28 +88,17 @@ ${historico}
 Responda APENAS com JSON válido, sem markdown, sem backticks:
 {"estagio": "string", "confianca": number, "motivo": "string", "acoes_sugeridas": "string"}`;
 
-  // Call Gemini Flash
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!geminiKey) {
-    return new Response(JSON.stringify({ error: "GEMINI_API_KEY não configurada" }), { status: 500 });
-  }
-
   let aiResult: { estagio: string; confianca: number; motivo: string; acoes_sugeridas: string };
   try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
-        }),
-      }
-    );
-    const geminiData = await geminiRes.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    aiResult = JSON.parse(rawText.trim());
+    const rawText = await callClaude({
+      model: MODEL_HAIKU,
+      prompt,
+      temperature: 0.1,
+      maxTokens: 500,
+    });
+    // Strip eventuais cercas ```json antes do parse (prompt já pede sem markdown, defensivo)
+    const cleaned = rawText.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    aiResult = JSON.parse(cleaned);
   } catch (err) {
     return new Response(JSON.stringify({ error: "Erro ao chamar IA: " + String(err) }), { status: 500 });
   }
