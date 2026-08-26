@@ -2,7 +2,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Mail, MailCheck, MessageSquare, CheckCheck, Globe, Smartphone, Hand, Bot } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -95,13 +96,26 @@ export default function LeadCard({ lead, onClick }: LeadCardProps) {
             <Mail className="h-3.5 w-3.5 text-muted-foreground/40" />
           )}
 
-          {lead.whatsapp_respondido ? (
-            <CheckCheck className="h-3.5 w-3.5 text-success" />
-          ) : lead.whatsapp_enviado ? (
-            <MessageSquare className="h-3.5 w-3.5 text-primary" />
-          ) : (
-            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/40" />
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                {lead.whatsapp_respondido ? (
+                  <CheckCheck className="h-3.5 w-3.5 text-success" />
+                ) : lead.whatsapp_enviado ? (
+                  <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/40" />
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              {lead.whatsapp_respondido
+                ? `Respondeu no WhatsApp${lead.data_whatsapp_respondido ? " · " + formatDistanceToNow(new Date(lead.data_whatsapp_respondido), { addSuffix: true, locale: ptBR }) : ""}`
+                : lead.whatsapp_enviado
+                ? `Contatado no WhatsApp${lead.data_whatsapp_enviado ? " · " + formatDistanceToNow(new Date(lead.data_whatsapp_enviado), { addSuffix: true, locale: ptBR }) : ""}`
+                : "Sem contato no WhatsApp"}
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <Badge className={`text-[10px] px-1.5 py-0 ${getPrioridadeBadge(lead.prioridade_contato)}`}>
