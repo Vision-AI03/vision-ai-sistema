@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callClaude, MODEL_HAIKU } from "../_shared/anthropic.ts";
+import { callClaudeSearch } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -229,6 +229,11 @@ Deno.serve(async (req) => {
   const prompt = `Você é um analista de vendas B2B da Vision AI, uma agência de inteligência artificial.
 Analise os dados coletados sobre este lead e gere um perfil enriquecido.
 
+Você tem acesso à ferramenta de busca na web. Se os dados coletados abaixo forem
+insuficientes, genéricos ou desatualizados, BUSQUE na web informações atuais sobre a
+empresa (o que faz, porte aproximado, notícias/movimentos recentes, presença digital)
+antes de gerar o perfil. Não invente dados — prefira buscar.
+
 DADOS DO LEAD:
 - Nome: ${lead.nome}
 - Email: ${lead.email}
@@ -270,10 +275,10 @@ Retorne um JSON com:
 Retorne APENAS o JSON, sem markdown.`;
 
   try {
-    const aiContent = await callClaude({
-      model: MODEL_HAIKU,
+    const aiContent = await callClaudeSearch({
       prompt,
-      temperature: 0.3,
+      maxTokens: 2048,
+      maxSearches: 5,
     });
 
     // Strip eventuais cercas ```json antes de extrair o objeto

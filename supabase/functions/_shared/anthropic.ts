@@ -163,3 +163,41 @@ export async function callClaudeWithTool<T = Record<string, unknown>>({
   }
   return toolBlock.input as T;
 }
+
+// Geração com busca na web (server tool). Requer Sonnet 5 / Opus (web_search_20260209).
+// Trata pause_turn (loop server-side de tools). Retorna o texto final concatenado.
+export interface CallClaudeSearchParams {
+  prompt: string;
+  system?: string;
+  model?: string;
+  maxTokens?: number;
+  maxSearches?: number;
+}
+
+export async function callClaudeSearch({
+  prompt,
+  system,
+  model = MODEL_SONNET,
+  maxTokens = 2048,
+  maxSearches = 5,
+}: CallClaudeSearchParams): Promise<string> {
+  const tools = [{ type: "web_search_20260209", name: "web_search", max_uses: maxSearches }];
+  const messages: ClaudeMessage[] = [{ role: "user", content: prompt }];
+  let data: any;
+  // até 4 iterações para lidar com pause_turn (limite server-side de 10 buscas por turno)
+  for (let i = 0; i < 4; i++) {
+    const body: Record<string, unknown> = { model, max_tokens: maxTokens, messages, tools };
+    if (system) body.system = system;
+    data = await postAnthropic(body);
+    if (data?.stop_reason === "pause_turn" && data?.content) {
+      messages.push({ role: "assistant", content: data.content });
+      continue;
+    }
+    break;
+  }
+  return (data?.content ?? [])
+    .filter((b: { type?: string }) => b.type === "text")
+    .map((b: { text?: string }) => b.text ?? "")
+    .join("")
+    .trim();
+}
