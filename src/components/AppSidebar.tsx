@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, MessageSquare, FileText, DollarSign, LogOut,
   KeyRound, CheckSquare, DatabaseBackup, Webhook, BarChart2, Zap,
-  CalendarDays, ScrollText, BrainCircuit, Target, Sun,
+  CalendarDays, ScrollText, BrainCircuit, Target, Sun, Activity,
 } from "lucide-react";
 import logoVision from "@/assets/logo_vision_transparent_transparent.png";
 import { NavLink } from "@/components/NavLink";
@@ -42,6 +42,7 @@ const configItems = [
   { title: "Credenciais", url: "/configuracoes/credenciais", icon: KeyRound },
   { title: "Integrações", url: "/configuracoes/integracoes", icon: Webhook },
   { title: "Backup", url: "/configuracoes/backup", icon: DatabaseBackup },
+  { title: "Saúde", url: "/configuracoes/saude", icon: Activity },
 ];
 
 export function AppSidebar() {
