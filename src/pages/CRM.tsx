@@ -16,6 +16,7 @@ const COLUNAS = [
   { id: "novo", title: "Novo" },
   { id: "enriquecido", title: "Enriquecido" },
   { id: "contatado", title: "Contatado" },
+  { id: "respondeu", title: "Respondeu" },
   { id: "reuniao_agendada", title: "Reunião Agendada" },
   { id: "perdido", title: "Perdido" },
 ];
