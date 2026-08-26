@@ -5,9 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Search, MapPin, Briefcase, Users, Zap, Clock,
-  CheckCircle2, XCircle, Loader2, Instagram, Phone,
-  TrendingUp, Target, RefreshCw,
+  CheckCircle2, XCircle, Loader2, Phone,
+  TrendingUp, Target, RefreshCw, Trash2,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const NICHOS = [
   "Transportadora",
@@ -56,10 +61,25 @@ type Extracao = {
   nicho: string;
   quantidade_solicitada: number;
   quantidade_extraida: number;
+  quantidade_descartada?: number;
+  motivo_descartes?: Record<string, number>;
   status: "processando" | "concluido" | "erro";
   erro_mensagem?: string;
   apify_run_id?: string;
 };
+
+const MOTIVO_LABELS: Record<string, string> = {
+  sem_contato: "sem contato",
+  duplicado: "duplicado",
+};
+
+function formatarMotivos(motivos?: Record<string, number>): string {
+  if (!motivos) return "";
+  return Object.entries(motivos)
+    .filter(([, count]) => count > 0)
+    .map(([k, v]) => `${v} ${MOTIVO_LABELS[k] || k}`)
+    .join(", ");
+}
 
 export default function Prospeccao() {
   const { toast } = useToast();
@@ -93,23 +113,33 @@ export default function Prospeccao() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchExtracoes]);
 
-  // Polling a cada 30s para extrações com Instagram em andamento
-  useEffect(() => {
-    const comRunId = extracoes.filter(e => e.status === "processando" && e.apify_run_id);
-    if (comRunId.length === 0) return;
+  // Conclusão chega via webhook do Apify → realtime channel acima atualiza a UI.
 
-    const interval = setInterval(async () => {
-      for (const ext of comRunId) {
-        await supabase.functions.invoke("prospeccao-check", {
-          body: { extracao_id: ext.id },
-        });
-      }
-    }, 30000);
+  async function handleExcluir(id: string) {
+    const { error } = await supabase.from("extracoes").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Extração excluída", description: "Os leads no CRM foram mantidos." });
+    fetchExtracoes();
+  }
 
-    return () => clearInterval(interval);
-  }, [extracoes]);
+  async function handleLimparComErro() {
+    const { error, count } = await supabase
+      .from("extracoes")
+      .delete({ count: "exact" })
+      .eq("status", "erro");
+    if (error) {
+      toast({ title: "Erro ao limpar", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `${count ?? 0} extrações com erro removidas` });
+    fetchExtracoes();
+  }
 
   const cidadeFinal = usarCidadeCustom ? cidadeCustom : cidade;
+  const temErros = extracoes.some(e => e.status === "erro");
 
   async function handleExtrair() {
     if (!cidadeFinal.trim()) {
@@ -167,7 +197,7 @@ export default function Prospeccao() {
             Prospecção Automática
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Extrai leads do Instagram via Apify e popula o CRM automaticamente
+            Extrai leads do Google Maps por cidade e nicho — telefone, site, endereço e categoria já entram no CRM
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchExtracoes}>
@@ -292,9 +322,9 @@ export default function Prospeccao() {
         </div>
 
         <div className="bg-muted/40 rounded-lg p-3 border border-border/50">
-          <p className="text-xs text-muted-foreground mb-1">Busca que será executada:</p>
+          <p className="text-xs text-muted-foreground mb-1">Busca que será executada (Google Maps):</p>
           <code className="text-xs text-primary font-mono">
-            {nicho} {cidadeFinal || "[cidade]"} site:instagram.com
+            {nicho} em {cidadeFinal || "[cidade]"} (Google Maps)
           </code>
         </div>
 
@@ -307,7 +337,7 @@ export default function Prospeccao() {
           {extraindo ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Buscando no Google... aguarde até 1 min
+              Iniciando busca no Google Maps...
             </>
           ) : (
             <>
@@ -319,17 +349,39 @@ export default function Prospeccao() {
 
         {extraindo && (
           <p className="text-xs text-muted-foreground">
-            🔍 Buscando perfis no Google (etapa 1 de 2). O Instagram será processado em background após concluir.
+            🗺️ Disparando o Google Maps Scraper. Os leads aparecem aqui quando o run concluir (geralmente 1–3 min).
           </p>
         )}
       </div>
 
       <div className="border border-border rounded-xl bg-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-border">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-2">
           <h2 className="font-semibold text-base flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Histórico de Extrações
           </h2>
+          {temErros && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  Limpar com erro
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Limpar extrações com erro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Remove todas as extrações com status de erro do histórico. Leads já criados no CRM não são afetados.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleLimparComErro}>Limpar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
         {loadingHistory ? (
           <div className="flex items-center justify-center py-12">
@@ -337,7 +389,7 @@ export default function Prospeccao() {
           </div>
         ) : extracoes.length === 0 ? (
           <div className="py-12 text-center">
-            <Instagram className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+            <MapPin className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Nenhuma extração realizada ainda</p>
             <p className="text-xs text-muted-foreground/60 mt-1">Configure e execute sua primeira prospecção acima</p>
           </div>
@@ -368,12 +420,32 @@ export default function Prospeccao() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  {ext.status === "concluido" && (
-                    <div className="flex items-center gap-1 text-sm text-green-600 font-medium">
-                      <Phone className="h-3.5 w-3.5" />
-                      {ext.quantidade_extraida} leads
-                    </div>
-                  )}
+                  {ext.status === "concluido" && (() => {
+                    const novos = ext.quantidade_extraida || 0;
+                    const descartados = ext.quantidade_descartada ?? 0;
+                    const total = novos + descartados;
+                    return (
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-1.5 text-sm font-medium">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-foreground">{total} extraídos</span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-green-600">{novos} novos</span>
+                          {descartados > 0 && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              <span className="text-muted-foreground">{descartados} descartados</span>
+                            </>
+                          )}
+                        </div>
+                        {descartados > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            ({formatarMotivos(ext.motivo_descartes)})
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <Badge
                     variant={
                       ext.status === "concluido" ? "default" :
@@ -384,6 +456,25 @@ export default function Prospeccao() {
                     {ext.status === "processando" ? "Processando" :
                      ext.status === "concluido" ? "Concluído" : "Erro"}
                   </Badge>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir esta extração?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Remove o registro de {ext.nicho} · {ext.cidade} do histórico. Os leads já criados no CRM permanecem intactos.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleExcluir(ext.id)}>Excluir</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             ))}

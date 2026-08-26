@@ -71,6 +71,108 @@ Deno.serve(async (req) => {
     return new Response("datasetId missing", { status: 400 });
   }
 
+  // ─── ETAPA MAPS (fluxo primário) ────────────────────────────────────────
+  // Recebe dataset do compass/crawler-google-places, processa cada place
+  // e insere leads tolerando dados incompletos. Registra motivos de descarte
+  // em extracoes.motivo_descartes para a UI mostrar o que aconteceu.
+  if (stage === "maps") {
+    const places = await buscarDataset(datasetId, APIFY_TOKEN);
+    const motivos: Record<string, number> = { sem_contato: 0, duplicado: 0 };
+    const leadsInseridos: string[] = [];
+
+    for (const place of places) {
+      const nome: string = place?.title || place?.name || "Sem nome";
+      const telefone = extrairTelefone(place?.phone || place?.phoneNumber || "");
+      const site: string | null = place?.website || place?.websiteUrl || null;
+      const emailRaw: string | null =
+        (Array.isArray(place?.emails) && place.emails[0]) ||
+        extrairEmail(place?.description || "") ||
+        null;
+      const endereco: string | null = place?.address || null;
+      const categoria: string | null = place?.categoryName || null;
+      const avaliacao: number | null = typeof place?.totalScore === "number" ? place.totalScore : null;
+
+      // Política: precisa de ao menos um canal de contato (telefone, site ou email).
+      // Sem nenhum, não há como abordar — descarta com motivo registrado.
+      if (!telefone && !site && !emailRaw) {
+        motivos.sem_contato++;
+        continue;
+      }
+
+      // Dedupe: telefone tem prioridade; sem telefone, dedupe por site.
+      let existente: { id: string } | null = null;
+      if (telefone) {
+        const r = await supabase
+          .from("leads")
+          .select("id")
+          .eq("telefone", telefone)
+          .maybeSingle();
+        existente = r.data ?? null;
+      }
+      if (!existente && site) {
+        const r = await supabase
+          .from("leads")
+          .select("id")
+          .eq("site_empresa", site)
+          .maybeSingle();
+        existente = r.data ?? null;
+      }
+      if (existente) {
+        motivos.duplicado++;
+        continue;
+      }
+
+      // dados_incompletos = sem telefone OU sem email (sinaliza enriquecimento futuro)
+      const dados_incompletos = !telefone || !emailRaw;
+
+      const { data: novoLead, error: insertError } = await supabase
+        .from("leads")
+        .insert({
+          nome,
+          empresa: nome,
+          email: emailRaw,
+          telefone,
+          site_empresa: site,
+          segmento: nicho,
+          origem: "google_maps_scraping",
+          estagio_fonte: "automatico",
+          status: "novo",
+          dados_incompletos,
+          origem_metadata: {
+            cidade,
+            nicho,
+            endereco,
+            categoria,
+            avaliacao,
+            extracao_id,
+            place_id: place?.placeId,
+            maps_url: place?.url,
+          },
+        })
+        .select("id")
+        .single();
+
+      if (!insertError && novoLead) {
+        leadsInseridos.push(novoLead.id);
+      } else if (insertError) {
+        console.error("Insert error:", insertError.message);
+      }
+    }
+
+    const quantidadeDescartada = motivos.sem_contato + motivos.duplicado;
+    console.log(`Maps: ${leadsInseridos.length} inseridos, ${quantidadeDescartada} descartados`, motivos);
+
+    await supabase.from("extracoes").update({
+      status: "concluido",
+      quantidade_extraida: leadsInseridos.length,
+      quantidade_descartada: quantidadeDescartada,
+      motivo_descartes: motivos,
+      leads_ids: leadsInseridos,
+    }).eq("id", extracao_id);
+
+    return new Response("ok", { status: 200 });
+  }
+
   // ─── ETAPA GOOGLE CONCLUÍDA → inicia Instagram Scraper ──────────────────
   if (stage === "google") {
     const googleItems = await buscarDataset(datasetId, APIFY_TOKEN);

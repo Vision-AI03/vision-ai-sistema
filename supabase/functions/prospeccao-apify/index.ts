@@ -8,22 +8,6 @@ const corsHeaders = {
 
 const APIFY_BASE = "https://api.apify.com/v2";
 
-function extrairUsernames(googleItems: any[]): string[] {
-  const usernames: string[] = [];
-  const blocked = ["p", "reel", "stories", "explore", "accounts", "about", "help"];
-  for (const item of googleItems) {
-    for (const result of (item?.organicResults || [])) {
-      const url: string = result?.url || result?.link || "";
-      const match = url.match(/instagram\.com\/([^/?#]+)/);
-      const u = match?.[1]?.replace(/\/$/, "");
-      if (u && !blocked.includes(u) && !usernames.includes(u)) {
-        usernames.push(u);
-      }
-    }
-  }
-  return usernames;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -67,81 +51,73 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  try {
-    const termoBusca = `${nicho} ${cidade} site:instagram.com`;
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
-    // ── ETAPA 1: Google Search síncrono (waitForFinish=80) ───────────────────
-    // Sem webhooks. Apify espera até 80s e retorna o resultado direto.
-    const googleRes = await fetch(
-      `${APIFY_BASE}/acts/apify~google-search-scraper/runs?token=${APIFY_TOKEN}&waitForFinish=80`,
+  try {
+    // ── ETAPA ÚNICA: Google Maps via compass/crawler-google-places (assíncrono + webhook)
+    // Fonte primária. Telefone, endereço, site, categoria, avaliação têm taxa de
+    // preenchimento muito maior do que perfis de Instagram.
+    const searchString = `${nicho} em ${cidade}`;
+
+    // 1. Dispara o run sem aguardar (webhook avisa quando concluir)
+    const mapsRes = await fetch(
+      `${APIFY_BASE}/acts/compass~crawler-google-places/runs?token=${APIFY_TOKEN}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          queries: termoBusca,
-          resultsPerPage: Math.min(quantidade * 3, 100),
-          maxPagesPerQuery: 1,
+          searchStringsArray: [searchString],
+          maxCrawledPlacesPerSearch: quantidade,
           languageCode: "pt",
-          countryCode: "BR",
+          countryCode: "br",
+        }),
+      }
+    );
+    const mapsRun = await mapsRes.json();
+    console.log("Apify Maps HTTP status:", mapsRes.status);
+    console.log("Apify Maps response:", JSON.stringify(mapsRun).slice(0, 500));
+
+    if (!mapsRes.ok) {
+      const apifyErr = mapsRun?.error?.message || mapsRun?.error?.type || JSON.stringify(mapsRun);
+      throw new Error(`Apify retornou ${mapsRes.status}: ${apifyErr}`);
+    }
+
+    const mapsRunId = mapsRun?.data?.id;
+    if (!mapsRunId) {
+      throw new Error(`Falha ao iniciar Google Maps Scraper: ${JSON.stringify(mapsRun).slice(0, 300)}`);
+    }
+
+    // 2. Registra webhook para finalização do run → prospeccao-webhook stage=maps
+    const webhookUrl =
+      `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
+      `?stage=maps` +
+      `&extracao_id=${encodeURIComponent(extracao_id)}` +
+      `&cidade=${encodeURIComponent(cidade)}` +
+      `&nicho=${encodeURIComponent(nicho)}` +
+      `&quantidade=${quantidade}`;
+
+    await fetch(
+      `${APIFY_BASE}/actor-runs/${mapsRunId}/webhooks?token=${APIFY_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+          requestUrl: webhookUrl,
         }),
       }
     );
 
-    const googleRun = await googleRes.json();
-    console.log("Google run status:", googleRun?.data?.status, "dataset:", googleRun?.data?.defaultDatasetId);
-
-    const googleStatus = googleRun?.data?.status;
-    const googleDatasetId = googleRun?.data?.defaultDatasetId;
-
-    if (googleStatus !== "SUCCEEDED" || !googleDatasetId) {
-      throw new Error(
-        `Google Search não completou a tempo (status: ${googleStatus ?? "sem resposta"}). Tente novamente.`
-      );
-    }
-
-    // ── ETAPA 2: Busca resultados e extrai usernames ─────────────────────────
-    const itemsRes = await fetch(
-      `${APIFY_BASE}/datasets/${googleDatasetId}/items?token=${APIFY_TOKEN}&limit=200`
-    );
-    const googleItems = await itemsRes.json();
-    const usernames = extrairUsernames(Array.isArray(googleItems) ? googleItems : []);
-    console.log(`Usernames extraídos: ${usernames.length}`);
-
-    if (usernames.length === 0) {
-      throw new Error("Nenhum perfil Instagram encontrado para essa busca. Tente outro nicho ou cidade.");
-    }
-
-    const usernamesToScrape = usernames.slice(0, Math.min(quantidade * 2, 50));
-
-    // ── ETAPA 3: Inicia Instagram Scraper assíncrono (sem webhook) ───────────
-    // Retorna imediatamente com o runId. O cliente vai checar via prospeccao-check.
-    const igRes = await fetch(
-      `${APIFY_BASE}/acts/apify~instagram-profile-scraper/runs?token=${APIFY_TOKEN}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usernames: usernamesToScrape }),
-      }
-    );
-    const igRun = await igRes.json();
-    const igRunId = igRun?.data?.id;
-    console.log("Instagram run id:", igRunId);
-
-    if (!igRunId) {
-      throw new Error(`Falha ao iniciar Instagram Scraper: ${JSON.stringify(igRun)}`);
-    }
-
-    // Salva o Instagram run ID para o cliente poder checar depois
+    // 3. Rastreabilidade: salva o runId no registro de extração
     await supabase.from("extracoes").update({
-      apify_run_id: igRunId,
+      apify_run_id: mapsRunId,
     }).eq("id", extracao_id);
 
     return new Response(
       JSON.stringify({
         sucesso: true,
-        ig_run_id: igRunId,
-        perfis_encontrados: usernames.length,
-        mensagem: "Google concluído. Instagram em processamento.",
+        apify_run_id: mapsRunId,
+        mensagem: "Google Maps em processamento. Os leads aparecerão no CRM quando concluir.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
