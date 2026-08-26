@@ -17,7 +17,9 @@ returns setof public.wa_conversas language sql stable set search_path = public a
   limit p_limite;
 $$;
 
--- 3) cron: classifica estágio a cada 15 min (padrão X-Cron-Secret + pg_net)
+-- 3) cron: classifica estágio a cada 15 min.
+-- Auth via Vault: o segredo 'cron_secret' deve existir em vault.secrets
+-- (setado fora da migration para não versionar o valor). Ver system_health/README.
 do $$
 begin
   if exists (select 1 from pg_extension where extname='pg_cron')
@@ -30,7 +32,7 @@ begin
         url := 'https://sfezwprbanvxsnwgvkhh.supabase.co/functions/v1/analyze-lead-stage',
         headers := jsonb_build_object(
           'Content-Type','application/json',
-          'X-Cron-Secret', coalesce(current_setting('app.cron_secret', true), 'set-me-in-vault')
+          'X-Cron-Secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
         ),
         body := '{}'::jsonb
       );
