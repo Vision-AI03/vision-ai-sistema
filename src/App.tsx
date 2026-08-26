@@ -26,6 +26,7 @@ import Automacoes from "./pages/Automacoes";
 import Metricas from "./pages/Metricas";
 import Prospeccao from "./pages/Prospeccao";
 import Saude from "./pages/Saude";
+import Conselho from "./pages/Conselho";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ function AppRoutes() {
         <Route path="/reunioes" element={<Reunioes />} />
         <Route path="/metricas" element={<Metricas />} />
         <Route path="/prospeccao" element={<Prospeccao />} />
+        <Route path="/conselho" element={<Conselho />} />
         <Route path="/configuracoes/automacoes" element={<Automacoes />} />
         <Route path="/configuracoes/credenciais" element={<Credenciais />} />
         <Route path="/configuracoes/backup" element={<Backup />} />

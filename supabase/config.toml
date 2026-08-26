@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.resend-webhook]
 verify_jwt = false
+
+[functions.conselho-analista]
+verify_jwt = false
+
+[functions.conselho-orquestrador]
+verify_jwt = false
