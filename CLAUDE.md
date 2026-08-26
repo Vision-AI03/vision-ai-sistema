@@ -17,7 +17,7 @@ Sistema de gestão interno da Vision AI (agência de IA, founder solo: Wesley).
 - IA nas Edge Functions: API Anthropic direta (`api.anthropic.com`), key em `CLAUDE_API_KEY` via secrets do Supabase. Modelos: `claude-haiku` para classificação/triagem, `claude-sonnet` para geração.
 - Email: Resend (+ resend-webhook para tracking).
 - Prospecção: Apify (Google Search Scraper + Instagram Profile Scraper) via `prospeccao-apify` + `prospeccao-webhook` (arquitetura assíncrona por webhook — NÃO usar polling síncrono, dá timeout).
-- WhatsApp: UazAPI (webhook em `whatsapp-webhook`).
+- WhatsApp: UazAPI (webhook em `wa-webhook` → tabelas `wa_*`, com bridge que cria/avança leads no CRM). Meta Cloud API descontinuada (função `whatsapp-webhook` removida).
 
 ## Estrutura
 - `src/pages/` — uma página por módulo (Dashboard, CRM, Prospeccao, Comunicacoes, Propostas, Contratos, Financeiro, Tarefas, Reunioes, Metricas, Relatorios, Notificacoes, Automacoes, Credenciais, Integracoes, Backup).

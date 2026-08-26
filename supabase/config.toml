@@ -36,9 +36,6 @@ verify_jwt = false
 [functions.capture-lead-meta]
 verify_jwt = false
 
-[functions.whatsapp-webhook]
-verify_jwt = false
-
 [functions.analyze-lead-stage]
 verify_jwt = false
 
