@@ -17,8 +17,9 @@ let ownerCache: string | null = null;
 async function resolverDono(fallback?: string): Promise<string | null> {
   if (fallback) return fallback;
   if (ownerCache) return ownerCache;
-  const { data } = await supabase.auth.admin.listUsers();
-  ownerCache = data?.users?.[0]?.id ?? null;
+  // Single-tenant: dono canônico via RPC owner_id()
+  const { data } = await supabase.rpc("owner_id");
+  ownerCache = (data as string | null) ?? null;
   return ownerCache;
 }
 

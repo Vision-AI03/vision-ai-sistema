@@ -30,6 +30,7 @@ Sistema de gestão interno da Vision AI (agência de IA, founder solo: Wesley).
 - Edge Functions: validar auth via `supabase.auth.getClaims(token)`, CORS headers padrão (copiar de função existente).
 - Toasts via `use-toast` para feedback de toda ação do usuário.
 - Datas com `date-fns` + locale `ptBR`.
+- **Single-tenant** (founder solo): o core (`leads`, `contratos`, `custos`, `parcelas`, `recorrencias`, `comunicacoes`) NÃO tem `user_id`. Quando precisar do dono, use a função SQL `owner_id()` — nunca enumerar `auth.users` nem `whatsapp_config`. Tabelas satélite (`tarefas`, `reunioes`, `propostas`, `notificacoes`, etc.) têm `user_id` por scaffolding legado, mas o sistema opera com 1 usuário.
 
 ## Fluxo de negócio
 Prospecção (Apify extrai leads) → CRM Kanban (enriquecimento + análise IA de estágio via WhatsApp) → Comunicações (email frio por nicho via Resend) → Propostas (geração IA) → Contratos (templates + preenchimento IA) → Financeiro (contratos, parcelas, recorrências/MRR, custos) → Relatório semanal automático.

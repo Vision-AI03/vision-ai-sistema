@@ -34,8 +34,9 @@ Deno.serve(async (req) => {
   if (targetUserId) {
     userIds = [targetUserId];
   } else {
-    const { data: configs } = await supabase.from("whatsapp_config").select("user_id");
-    userIds = (configs || []).map((c: any) => c.user_id);
+    // Single-tenant: o dono canônico do sistema (ver owner_id())
+    const { data: owner } = await supabase.rpc("owner_id");
+    userIds = owner ? [owner as string] : [];
   }
 
   const results: any[] = [];
