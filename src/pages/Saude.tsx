@@ -70,8 +70,7 @@ export default function Saude() {
 
   const carregar = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    // cast temporário: regenerar types.ts após aplicar a migration system_health remove isto
-    const { data: res, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>)("system_health");
+    const { data: res, error } = await supabase.rpc("system_health");
     if (error) {
       toast({ title: "Erro ao carregar saúde", description: error.message, variant: "destructive" });
     } else {

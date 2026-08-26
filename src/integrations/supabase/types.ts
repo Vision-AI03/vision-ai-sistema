@@ -1431,6 +1431,7 @@ export type Database = {
           analisada_em: string | null
           chat_id: string
           criado_em: string
+          estagio_analisado_ate: string | null
           id: string
           lead_id: string | null
           nome_contato: string | null
@@ -1445,6 +1446,7 @@ export type Database = {
           analisada_em?: string | null
           chat_id: string
           criado_em?: string
+          estagio_analisado_ate?: string | null
           id?: string
           lead_id?: string | null
           nome_contato?: string | null
@@ -1459,6 +1461,7 @@ export type Database = {
           analisada_em?: string | null
           chat_id?: string
           criado_em?: string
+          estagio_analisado_ate?: string | null
           id?: string
           lead_id?: string | null
           nome_contato?: string | null
@@ -1671,6 +1674,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      owner_id: { Args: never; Returns: string }
       registrar_licao: {
         Args: {
           p_contexto: string
@@ -1680,12 +1684,38 @@ export type Database = {
         }
         Returns: undefined
       }
+      system_health: { Args: never; Returns: Json }
       wa_conversas_para_analise: {
         Args: { p_limite?: number }
         Returns: {
           analisada_em: string | null
           chat_id: string
           criado_em: string
+          estagio_analisado_ate: string | null
+          id: string
+          lead_id: string | null
+          nome_contato: string | null
+          primeira_msg_em: string | null
+          respondeu: boolean
+          resultado: string | null
+          telefone: string | null
+          total_mensagens: number
+          ultima_msg_em: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "wa_conversas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      wa_conversas_para_estagio: {
+        Args: { p_limite?: number }
+        Returns: {
+          analisada_em: string | null
+          chat_id: string
+          criado_em: string
+          estagio_analisado_ate: string | null
           id: string
           lead_id: string | null
           nome_contato: string | null
