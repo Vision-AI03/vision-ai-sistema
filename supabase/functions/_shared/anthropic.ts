@@ -1,5 +1,5 @@
 export const MODEL_HAIKU = "claude-haiku-4-5-20251001";
-export const MODEL_SONNET = "claude-sonnet-4-6";
+export const MODEL_SONNET = "claude-sonnet-5";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -13,6 +13,13 @@ function getApiKey(): string {
 }
 
 async function postAnthropic(body: Record<string, unknown>): Promise<any> {
+  // Sonnet 5 / Opus rejeitam `temperature` (400) e vêm com thinking adaptativo
+  // ligado por padrão. Haiku 4.5 mantém o comportamento antigo (aceita temperature).
+  const model = typeof body.model === "string" ? body.model : "";
+  if (!/haiku/i.test(model)) {
+    delete body.temperature;
+    if (body.thinking === undefined) body.thinking = { type: "disabled" };
+  }
   const res = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
