@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, MessageSquare, FileText, DollarSign, LogOut,
   KeyRound, CheckSquare, DatabaseBackup, Webhook, BarChart2, Zap,
-  CalendarDays, ScrollText, BrainCircuit, Target, Sun, Activity, Landmark, Megaphone,
+  CalendarDays, ScrollText, BrainCircuit, Target, Sun, Activity, Landmark, Megaphone, Radar,
 } from "lucide-react";
 import logoVision from "@/assets/logo_vision_transparent_transparent.png";
 import { NavLink } from "@/components/NavLink";
@@ -36,6 +36,7 @@ const analyticsItems = [
   { title: "Conselho", url: "/conselho", icon: Landmark },
   { title: "Métricas", url: "/metricas", icon: BrainCircuit },
   { title: "Anúncios", url: "/anuncios", icon: Megaphone },
+  { title: "Radar de Mercado", url: "/radar", icon: Radar },
   { title: "Relatórios", url: "/relatorios", icon: BarChart2 },
 ];
 

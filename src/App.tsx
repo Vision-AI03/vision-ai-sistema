@@ -26,6 +26,7 @@ import Automacoes from "./pages/Automacoes";
 import Metricas from "./pages/Metricas";
 import Prospeccao from "./pages/Prospeccao";
 import Anuncios from "./pages/Anuncios";
+import Radar from "./pages/Radar";
 import Saude from "./pages/Saude";
 import Conselho from "./pages/Conselho";
 import NotFound from "./pages/NotFound";
@@ -74,6 +75,7 @@ function AppRoutes() {
         <Route path="/reunioes" element={<Reunioes />} />
         <Route path="/metricas" element={<Metricas />} />
         <Route path="/anuncios" element={<Anuncios />} />
+        <Route path="/radar" element={<Radar />} />
         <Route path="/prospeccao" element={<Prospeccao />} />
         <Route path="/conselho" element={<Conselho />} />
         <Route path="/configuracoes/automacoes" element={<Automacoes />} />
