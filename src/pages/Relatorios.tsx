@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Relatorio {
   id: string;
@@ -137,6 +138,7 @@ export default function Relatorios() {
             <ScrollArea className="max-h-[calc(100vh-400px)]">
               <div className="prose prose-sm prose-invert max-w-none">
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   components={{
                     h2: ({ children }) => <h2 className="text-base font-bold mt-5 mb-2 text-foreground">{children}</h2>,
                     h3: ({ children }) => <h3 className="text-sm font-semibold mt-4 mb-1.5 text-foreground">{children}</h3>,
@@ -144,6 +146,14 @@ export default function Relatorios() {
                     ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-sm text-foreground/90">{children}</ul>,
                     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                     strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto my-3">
+                        <table className="w-full text-xs border-collapse">{children}</table>
+                      </div>
+                    ),
+                    thead: ({ children }) => <thead className="bg-secondary/40">{children}</thead>,
+                    th: ({ children }) => <th className="text-left font-semibold px-2 py-1.5 border border-border">{children}</th>,
+                    td: ({ children }) => <td className="px-2 py-1.5 border border-border/60">{children}</td>,
                   }}
                 >
                   {selected.relatorio_completo}
