@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -36,6 +37,13 @@ interface Analise {
   id: string; tipo: string; periodo_inicio: string; periodo_fim: string;
   resumo: string | null; conteudo: string | null; gerado_em: string;
 }
+
+const PERIODOS: Record<string, { label: string; dias: number }> = {
+  "30d": { label: "Últimos 30 dias", dias: 30 },
+  "90d": { label: "Últimos 90 dias", dias: 90 },
+  "12m": { label: "Últimos 12 meses", dias: 365 },
+  tudo: { label: "Todo o período", dias: 3650 },
+};
 
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
@@ -84,13 +92,15 @@ export default function Anuncios() {
   const [metricas, setMetricas] = useState<Metrica[]>([]);
   const [criativos, setCriativos] = useState<Criativo[]>([]);
   const [analises, setAnalises] = useState<Analise[]>([]);
+  const [periodo, setPeriodo] = useState<string>("tudo");
   const { toast } = useToast();
 
   async function fetchAll() {
     setLoading(true);
-    const ini30 = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    const dias = PERIODOS[periodo]?.dias ?? 3650;
+    const desde = new Date(Date.now() - dias * 86400000).toISOString().split("T")[0];
     const [mRes, cRes, aRes] = await Promise.all([
-      db.from("ads_metricas_diarias").select("*").gte("data", ini30).order("data", { ascending: true }),
+      db.from("ads_metricas_diarias").select("*").gte("data", desde).order("data", { ascending: true }),
       db.from("ads_criativos").select("ad_id, campaign_id, nome, titulo, thumbnail_url, status"),
       db.from("ads_analises_ia").select("*").order("gerado_em", { ascending: false }).limit(20),
     ]);
@@ -100,7 +110,7 @@ export default function Anuncios() {
     setLoading(false);
   }
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, [periodo]);
 
   async function handleSync() {
     setSyncing(true);
@@ -201,9 +211,17 @@ export default function Anuncios() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Megaphone className="h-6 w-6" /> Radar de Anúncios</h1>
-          <p className="text-sm text-muted-foreground mt-1">Performance da Meta Ads (últimos 30 dias) + análise por IA</p>
+          <p className="text-sm text-muted-foreground mt-1">Performance da Meta Ads ({PERIODOS[periodo]?.label.toLowerCase()}) + análise por IA</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Select value={periodo} onValueChange={setPeriodo}>
+            <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(PERIODOS).map(([k, v]) => (
+                <SelectItem key={k} value={k} className="text-xs">{v.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5">
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Sincronizando..." : "Sincronizar"}
           </Button>
@@ -305,7 +323,7 @@ export default function Anuncios() {
           {/* Criativos */}
           {anuncios.length > 0 && (
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Criativos (top por gasto — 14 dias)</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Criativos (top por gasto)</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {anuncios.map((a) => (
