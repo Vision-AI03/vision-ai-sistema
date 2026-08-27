@@ -76,23 +76,35 @@ const TOOL = {
 };
 
 async function analisar(tipo: string) {
+  // Analisa os últimos 180 dias; se não houver dado recente (campanhas antigas),
+  // cai para todo o histórico disponível.
   const hoje = new Date();
-  const ini30 = new Date(hoje.getTime() - 30 * 86400000).toISOString().split("T")[0];
+  const ini180 = new Date(hoje.getTime() - 180 * 86400000).toISOString().split("T")[0];
 
-  const { data: rows } = await supabase
-    .from("ads_metricas_diarias")
-    .select("*")
-    .gte("data", ini30)
-    .order("data", { ascending: true });
+  async function buscar(desde?: string) {
+    let q = supabase.from("ads_metricas_diarias").select("*").order("data", { ascending: true });
+    if (desde) q = q.gte("data", desde);
+    const { data } = await q;
+    return (data ?? []) as Row[];
+  }
 
-  const all = (rows ?? []) as Row[];
+  let all = await buscar(ini180);
+  if (all.filter((r) => r.nivel === "conta").length === 0) {
+    all = await buscar(); // fallback: todo o histórico
+  }
+
   const conta = all.filter((r) => r.nivel === "conta");
   const campanhas = all.filter((r) => r.nivel === "campanha");
   const anuncios = all.filter((r) => r.nivel === "anuncio");
 
   if (conta.length === 0) {
-    throw new Error("Sem métricas sincronizadas. Rode o meta-ads-sync primeiro.");
+    throw new Error("Sem métricas sincronizadas. Rode o meta-ads-sync (ou Puxar histórico) primeiro.");
   }
+
+  // Período real coberto pelos dados
+  const datas = conta.map((r) => r.data).sort();
+  const periodoInicio = datas[0];
+  const periodoFim = datas[datas.length - 1];
 
   // Fadiga: CPC/CTR da 1ª metade vs 2ª metade do período (conta)
   const meio = Math.floor(conta.length / 2);
@@ -124,8 +136,8 @@ async function analisar(tipo: string) {
   }).sort((a, b) => b.gasto - a.gasto).slice(0, 25);
 
   const dados = {
-    periodo: { inicio: ini30, fim: hoje.toISOString().split("T")[0] },
-    total_30d: agregar(conta),
+    periodo: { inicio: periodoInicio, fim: periodoFim },
+    total_periodo: agregar(conta),
     tendencia: { primeira_metade: primeira, segunda_metade: segunda },
     campanhas: campanhasResumo,
     anuncios: anunciosResumo,
@@ -139,7 +151,7 @@ async function analisar(tipo: string) {
     "Seja específico com números. Se faltar dado (ex: sem conversões/pixel), diga e foque em CPC/CTR/alcance.";
 
   const prompt =
-    "Dados de performance (últimos 30 dias):\n```json\n" +
+    `Dados de performance (período ${periodoInicio} a ${periodoFim}):\n\`\`\`json\n` +
     JSON.stringify(dados, null, 2) +
     "\n```\nGere a análise chamando a ferramenta registrar_analise_ads.";
 
@@ -197,7 +209,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("meta-ads-analise erro:", e);
     return new Response(JSON.stringify({ ok: false, error: String(e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
