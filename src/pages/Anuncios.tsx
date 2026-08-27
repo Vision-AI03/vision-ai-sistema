@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Megaphone, Loader2, RefreshCw, Sparkles, DollarSign, MousePointerClick,
-  Target, TrendingUp, Trash2, Image as ImageIcon,
+  Target, TrendingUp, Trash2, Image as ImageIcon, History,
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -79,6 +79,7 @@ const tooltipStyle = {
 export default function Anuncios() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [analisando, setAnalisando] = useState(false);
   const [metricas, setMetricas] = useState<Metrica[]>([]);
   const [criativos, setCriativos] = useState<Criativo[]>([]);
@@ -113,6 +114,21 @@ export default function Anuncios() {
       toast({ title: "Erro ao sincronizar", description: e.message, variant: "destructive" });
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleBackfill() {
+    setBackfilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-ads-sync", { body: { preset: "maximum" } });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.error);
+      toast({ title: "Histórico puxado!", description: `${data?.metricas ?? 0} métricas importadas.` });
+      await fetchAll();
+    } catch (e: any) {
+      toast({ title: "Erro no histórico", description: e.message, variant: "destructive" });
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -190,6 +206,9 @@ export default function Anuncios() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5">
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Sincronizando..." : "Sincronizar"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleBackfill} disabled={backfilling} className="gap-1.5">
+            <History className={`h-4 w-4 ${backfilling ? "animate-spin" : ""}`} /> {backfilling ? "Puxando..." : "Puxar histórico"}
           </Button>
           <Button size="sm" onClick={handleAnalisar} disabled={analisando || semDados} className="gap-1.5">
             {analisando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

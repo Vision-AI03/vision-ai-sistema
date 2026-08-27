@@ -72,12 +72,29 @@ function mapInsight(row: any, nivel: string, refId: string, nome: string) {
   };
 }
 
-async function sincronizar() {
+interface SyncOpts {
+  preset?: string;   // ex: 'maximum', 'last_90d' — backfill histórico
+  since?: string;    // 'YYYY-MM-DD'
+  until?: string;    // 'YYYY-MM-DD'
+}
+
+// Monta o parâmetro de janela: time_range (since/until) tem prioridade sobre
+// date_preset. Sem opções, cai no preset padrão de cada nível.
+function janela(opts: SyncOpts, presetPadrao: string): Record<string, string> {
+  if (opts.since && opts.until) {
+    return { time_range: JSON.stringify({ since: opts.since, until: opts.until }) };
+  }
+  if (opts.preset) return { date_preset: opts.preset };
+  return { date_preset: presetPadrao };
+}
+
+async function sincronizar(opts: SyncOpts = {}) {
   if (!TOKEN || !ACCOUNT) {
     throw new Error("META_ADS_TOKEN ou META_AD_ACCOUNT_ID não configurados nos secrets.");
   }
 
   const resumo = { campanhas: 0, criativos: 0, metricas: 0 };
+  const backfill = !!(opts.preset || (opts.since && opts.until));
 
   // 1) Campanhas
   const campanhas = await graphAll(`${ACCOUNT}/campaigns`, {
@@ -119,25 +136,26 @@ async function sincronizar() {
     resumo.criativos = rows.length;
   }
 
-  // 3) Métricas diárias — conta (30d), campanha (30d), anúncio (14d)
+  // 3) Métricas diárias — padrão: conta (30d), campanha (30d), anúncio (14d).
+  // Backfill: a mesma janela ampla vale para os três níveis.
   const metricas: any[] = [];
 
   const conta = await graphAll(`${ACCOUNT}/insights`, {
-    fields: INSIGHT_FIELDS, time_increment: "1", date_preset: "last_30d",
+    fields: INSIGHT_FIELDS, time_increment: "1", ...janela(opts, "last_30d"),
   });
   for (const r of conta) metricas.push(mapInsight(r, "conta", ACCOUNT, "Conta"));
 
   const porCampanha = await graphAll(`${ACCOUNT}/insights`, {
     level: "campaign",
     fields: `${INSIGHT_FIELDS},campaign_id,campaign_name`,
-    time_increment: "1", date_preset: "last_30d",
+    time_increment: "1", ...janela(opts, "last_30d"),
   });
   for (const r of porCampanha) metricas.push(mapInsight(r, "campanha", r.campaign_id, r.campaign_name));
 
   const porAnuncio = await graphAll(`${ACCOUNT}/insights`, {
     level: "ad",
     fields: `${INSIGHT_FIELDS},ad_id,ad_name`,
-    time_increment: "1", date_preset: "last_14d",
+    time_increment: "1", ...janela(opts, backfill ? "maximum" : "last_14d"),
   });
   for (const r of porAnuncio) metricas.push(mapInsight(r, "anuncio", r.ad_id, r.ad_name));
 
@@ -167,7 +185,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const resumo = await sincronizar();
+    const body = await req.json().catch(() => ({}));
+    const opts: SyncOpts = {
+      preset: body?.preset,
+      since: body?.since,
+      until: body?.until,
+    };
+    const resumo = await sincronizar(opts);
     return new Response(JSON.stringify({ ok: true, ...resumo }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
