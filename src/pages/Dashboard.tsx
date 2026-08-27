@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 interface KpiData {
   leadsDoMes: number;
   reunioesAgendadas: number;
-  taxaRespostaEmail: number;
+  taxaAberturaEmail: number;
   taxaRespostaWhatsapp: number;
   faturamentoMes: number;
   margemLiquida: number;
@@ -88,7 +88,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [kpis, setKpis] = useState<KpiData>({
-    leadsDoMes: 0, reunioesAgendadas: 0, taxaRespostaEmail: 0,
+    leadsDoMes: 0, reunioesAgendadas: 0, taxaAberturaEmail: 0,
     taxaRespostaWhatsapp: 0, faturamentoMes: 0, margemLiquida: 0, custosMes: 0,
   });
   const [leadsRecentes, setLeadsRecentes] = useState<LeadRecente[]>([]);
@@ -171,7 +171,7 @@ export default function Dashboard() {
 
     const [
       leadsRes, leadsRecentesRes, parcelasRes, recorrenciasRes, custosRes, allLeadsRes, tarefasRes,
-      contratosRes, emailContatosRes,
+      contratosRes, emailContatosRes, comunicEmailRes,
     ] = await Promise.all([
       supabase.from("leads").select("*").gte("criado_em", mesAtualInicio).lte("criado_em", mesAtualFim),
       supabase.from("leads").select("id, nome, empresa, score, status, criado_em").order("criado_em", { ascending: false }).limit(5),
@@ -182,15 +182,18 @@ export default function Dashboard() {
       supabase.from("tarefas").select("id, titulo, prioridade, data_vencimento, status, concluida").eq("concluida", false).lte("data_vencimento", today).order("prioridade", { ascending: true }).order("data_vencimento", { ascending: true }).limit(5),
       supabase.from("contratos").select("id, cliente_nome, status, valor_total, criado_em").in("status", ["pendente_assinatura", "rascunho", "enviado"]).order("criado_em", { ascending: false }).limit(5),
       supabase.from("email_contatos").select("status_envio, enviado_em, aberto_em").gte("created_at", mesAtualInicio),
+      supabase.from("comunicacoes").select("status").eq("tipo", "email").eq("direcao", "enviado").gte("criado_em", mesAtualInicio).lte("criado_em", mesAtualFim),
     ]);
 
     // KPIs
     const leadsMes = leadsRes.data || [];
     const totalLeads = leadsMes.length;
     const reunioes = leadsMes.filter(l => l.reuniao_agendada).length;
-    const emailEnviados = leadsMes.filter(l => l.email_enviado).length;
-    const emailRespondidos = leadsMes.filter(l => l.email_respondido).length;
-    const taxaEmail = emailEnviados > 0 ? Math.round((emailRespondidos / emailEnviados) * 100) : 0;
+    // Taxa de abertura de email — mesma fonte/definição da tela Métricas (comunicacoes + tracking Resend)
+    const comunicEmail = comunicEmailRes.data || [];
+    const emailEnviadosCom = comunicEmail.length;
+    const emailAbertosCom = comunicEmail.filter((e: any) => e.status === "aberto" || e.status === "clicado").length;
+    const taxaAberturaEmail = emailEnviadosCom > 0 ? Math.round((emailAbertosCom / emailEnviadosCom) * 100) : 0;
     const whatsEnviados = leadsMes.filter(l => l.whatsapp_enviado).length;
     const whatsRespondidos = leadsMes.filter(l => l.whatsapp_respondido).length;
     const taxaWhatsapp = whatsEnviados > 0 ? Math.round((whatsRespondidos / whatsEnviados) * 100) : 0;
@@ -208,7 +211,7 @@ export default function Dashboard() {
     const margem = faturamento - totalCustos;
 
     setKpis({
-      leadsDoMes: totalLeads, reunioesAgendadas: reunioes, taxaRespostaEmail: taxaEmail,
+      leadsDoMes: totalLeads, reunioesAgendadas: reunioes, taxaAberturaEmail,
       taxaRespostaWhatsapp: taxaWhatsapp, faturamentoMes: faturamento, margemLiquida: margem, custosMes: totalCustos,
     });
 
@@ -281,7 +284,7 @@ export default function Dashboard() {
   const kpiCards = [
     { title: "Leads do Mês", value: String(kpis.leadsDoMes), icon: Users },
     { title: "Reuniões Agendadas", value: String(kpis.reunioesAgendadas), icon: Calendar },
-    { title: "Taxa Resposta Email", value: `${kpis.taxaRespostaEmail}%`, icon: Mail },
+    { title: "Taxa Abertura Email", value: `${kpis.taxaAberturaEmail}%`, icon: Mail },
     { title: "Taxa Resposta WhatsApp", value: `${kpis.taxaRespostaWhatsapp}%`, icon: MessageSquare },
     { title: "Faturamento do Mês", value: formatCurrency(kpis.faturamentoMes), icon: DollarSign },
     { title: "Margem Líquida", value: formatCurrency(kpis.margemLiquida), icon: TrendingUp, subtitle: kpis.faturamentoMes > 0 ? `${Math.round((kpis.margemLiquida / kpis.faturamentoMes) * 100)}%` : "0%" },

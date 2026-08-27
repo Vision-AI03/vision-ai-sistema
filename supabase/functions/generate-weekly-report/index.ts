@@ -95,8 +95,9 @@ async function generateForUser(userId: string) {
     (leadMap[l.id] || []).some((m: any) => m.direcao === "recebida")
   ).length;
   const totalPerdidos = leadsAbordados.filter(l => l.status === "perdido").length;
-  const totalFechados = 0; // "fechado" stage removed
-  const taxaConversao = totalAbordados > 0 ? Math.round((totalFechados / totalAbordados) * 100) : 0;
+  // Conversão = leads que chegaram à reunião agendada (objetivo da abordagem)
+  const totalConverteram = leadsAbordados.filter(l => l.status === "reuniao_agendada").length;
+  const taxaConversao = totalAbordados > 0 ? Math.round((totalConverteram / totalAbordados) * 100) : 0;
   const taxaResposta = totalAbordados > 0 ? Math.round((totalResponderam / totalAbordados) * 100) : 0;
 
   // Build conversation summaries
@@ -124,6 +125,7 @@ Use tom direto, profissional e construtivo. Escreva em português brasileiro.
 MÉTRICAS DA SEMANA (${weekStart} a ${weekEnd}):
 - Leads abordados via WhatsApp: ${totalAbordados}
 - Leads que responderam: ${totalResponderam} (taxa: ${taxaResposta}%)
+- Leads que agendaram reunião: ${totalConverteram} (conversão: ${taxaConversao}%)
 - Leads perdidos: ${totalPerdidos}
 - Taxa de resposta: ${taxaResposta}%
 
@@ -186,7 +188,7 @@ Responda APENAS com o relatório em Markdown, sem texto adicional antes ou depoi
     semana_fim: weekEnd,
     resumo_executivo: resumo,
     total_leads_abordados: totalAbordados,
-    total_avancaram: 0,
+    total_avancaram: totalConverteram,
     total_perdidos: totalPerdidos,
     taxa_conversao: taxaConversao,
     analise_funcionou: funcionouMatch?.[1]?.trim() || "",
