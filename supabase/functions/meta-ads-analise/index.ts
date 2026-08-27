@@ -160,7 +160,7 @@ async function analisar(tipo: string) {
     tool: TOOL,
     system,
     content: [{ type: "text", text: prompt }],
-    maxTokens: 4000,
+    maxTokens: 8000,
   });
 
   const { data: inserted } = await supabase.from("ads_analises_ia").insert({

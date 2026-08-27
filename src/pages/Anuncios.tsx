@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -388,8 +387,7 @@ export default function Anuncios() {
                     Gerada em {format(new Date(ultima.gerado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                     {ultima.tipo === "semanal" && <Badge variant="outline" className="ml-2 text-[10px]">semanal</Badge>}
                   </p>
-                  <ScrollArea className="max-h-[520px]">
-                    <div className="prose prose-sm prose-invert max-w-none">
+                  <div className="prose prose-sm prose-invert max-w-none">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -411,8 +409,7 @@ export default function Anuncios() {
                       >
                         {ultima.conteudo || ""}
                       </ReactMarkdown>
-                    </div>
-                  </ScrollArea>
+                  </div>
                 </>
               )}
             </CardContent>
