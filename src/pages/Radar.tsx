@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Radar as RadarIcon, Loader2, RefreshCw, Sparkles, Rss, Trash2, Pencil,
-  ExternalLink, Star, Settings2, Plus,
+  ExternalLink, Star, Settings2, Plus, AtSign,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -59,6 +59,7 @@ const mdComponents = {
 export default function Radar() {
   const [loading, setLoading] = useState(true);
   const [coletando, setColetando] = useState(false);
+  const [coletandoX, setColetandoX] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [itens, setItens] = useState<Item[]>([]);
   const [fontes, setFontes] = useState<Fonte[]>([]);
@@ -100,6 +101,24 @@ export default function Radar() {
       toast({ title: "Erro na coleta", description: e.message, variant: "destructive" });
     } finally {
       setColetando(false);
+    }
+  }
+
+  async function handleColetarX() {
+    setColetandoX(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("radar-x-coletar", { body: {} });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.error);
+      if (data?.disparado === false) {
+        toast({ title: "Nenhuma fonte do X ativa", description: "Adicione handles em Fontes (tipo X)." });
+      } else {
+        toast({ title: "X em processamento", description: `Buscando ${data?.handles ?? 0} contas — os itens aparecem em ~1 min. Recarregue a página.` });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro ao coletar X", description: e.message, variant: "destructive" });
+    } finally {
+      setColetandoX(false);
     }
   }
 
@@ -177,7 +196,10 @@ export default function Radar() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleColetar} disabled={coletando} className="gap-1.5">
-            <RefreshCw className={`h-4 w-4 ${coletando ? "animate-spin" : ""}`} /> {coletando ? "Coletando..." : "Coletar agora"}
+            <RefreshCw className={`h-4 w-4 ${coletando ? "animate-spin" : ""}`} /> {coletando ? "Coletando..." : "Coletar web"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleColetarX} disabled={coletandoX} className="gap-1.5">
+            {coletandoX ? <Loader2 className="h-4 w-4 animate-spin" /> : <AtSign className="h-4 w-4" />} Coletar X
           </Button>
           <Button size="sm" onClick={() => handleGerar("diario")} disabled={gerando} className="gap-1.5">
             {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Briefing diário
@@ -201,16 +223,17 @@ export default function Radar() {
                       <SelectContent>
                         <SelectItem value="rss" className="text-xs">RSS</SelectItem>
                         <SelectItem value="site" className="text-xs">Site</SelectItem>
+                        <SelectItem value="x" className="text-xs">X (Twitter)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="col-span-4">
                     <Label className="text-xs">Nome</Label>
-                    <Input value={fNome} onChange={(e) => setFNome(e.target.value)} className="h-8 text-xs" placeholder="TechCrunch AI" />
+                    <Input value={fNome} onChange={(e) => setFNome(e.target.value)} className="h-8 text-xs" placeholder={fTipo === "x" ? "Sam Altman" : "TechCrunch AI"} />
                   </div>
                   <div className="col-span-3">
-                    <Label className="text-xs">URL do feed</Label>
-                    <Input value={fUrl} onChange={(e) => setFUrl(e.target.value)} className="h-8 text-xs" placeholder="https://.../feed/" />
+                    <Label className="text-xs">{fTipo === "x" ? "Handle" : "URL do feed"}</Label>
+                    <Input value={fUrl} onChange={(e) => setFUrl(e.target.value)} className="h-8 text-xs" placeholder={fTipo === "x" ? "@sama" : "https://.../feed/"} />
                   </div>
                   <div className="col-span-2 flex gap-1">
                     <Button size="sm" className="h-8 flex-1 gap-1" onClick={handleSalvarFonte}>
