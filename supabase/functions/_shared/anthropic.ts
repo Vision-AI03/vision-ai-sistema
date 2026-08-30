@@ -201,3 +201,55 @@ export async function callClaudeSearch({
     .join("")
     .trim();
 }
+
+// Chat com busca na web (multi-turn). Recebe a conversa inteira, roda o loop
+// de web_search (trata pause_turn) e devolve texto + fontes citadas (dedup por URL).
+export interface Fonte { url: string; titulo: string }
+export interface CallClaudeSearchChatParams {
+  messages: ClaudeMessage[];
+  system?: string;
+  model?: string;
+  maxTokens?: number;
+  maxSearches?: number;
+}
+
+export async function callClaudeSearchChat({
+  messages,
+  system,
+  model = MODEL_SONNET,
+  maxTokens = 4096,
+  maxSearches = 6,
+}: CallClaudeSearchChatParams): Promise<{ texto: string; fontes: Fonte[] }> {
+  const tools = [{ type: "web_search_20260209", name: "web_search", max_uses: maxSearches }];
+  const convo: ClaudeMessage[] = [...messages];
+  let data: any;
+  for (let i = 0; i < 5; i++) {
+    const body: Record<string, unknown> = { model, max_tokens: maxTokens, messages: convo, tools };
+    if (system) body.system = system;
+    data = await postAnthropic(body);
+    if (data?.stop_reason === "pause_turn" && data?.content) {
+      convo.push({ role: "assistant", content: data.content });
+      continue;
+    }
+    break;
+  }
+
+  const blocks = data?.content ?? [];
+  const texto = blocks
+    .filter((b: { type?: string }) => b.type === "text")
+    .map((b: { text?: string }) => b.text ?? "")
+    .join("")
+    .trim();
+
+  // Fontes: citações nos blocos de texto (web_search_result_location / url).
+  const fontesMap = new Map<string, string>();
+  for (const b of blocks) {
+    if (b?.type !== "text" || !Array.isArray(b.citations)) continue;
+    for (const c of b.citations) {
+      const url = c?.url;
+      if (url && !fontesMap.has(url)) fontesMap.set(url, c?.title ?? url);
+    }
+  }
+  const fontes: Fonte[] = Array.from(fontesMap, ([url, titulo]) => ({ url, titulo }));
+  return { texto, fontes };
+}

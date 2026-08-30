@@ -15,9 +15,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Radar as RadarIcon, Loader2, RefreshCw, Sparkles, Rss, Trash2, Pencil,
-  ExternalLink, Star, Settings2, Plus, AtSign,
+  ExternalLink, Star, Settings2, Plus, AtSign, MessageSquare,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import RadarChat from "@/components/radar/RadarChat";
 
 const db = supabase as any;
 
@@ -189,11 +191,22 @@ export default function Radar() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><RadarIcon className="h-6 w-6" /> Radar de Mercado IA</h1>
-          <p className="text-sm text-muted-foreground mt-1">O que muda no mundo da IA — sem ruído. Curadoria por IA + briefing diário/semanal.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><RadarIcon className="h-6 w-6" /> Radar de Mercado IA</h1>
+        <p className="text-sm text-muted-foreground mt-1">Pergunte um tema no chat (a IA busca na web e responde com fontes) ou acompanhe o feed curado + briefings.</p>
+      </div>
+
+      <Tabs defaultValue="chat" className="w-full">
+        <TabsList>
+          <TabsTrigger value="chat" className="gap-1.5"><MessageSquare className="h-4 w-4" /> Chat</TabsTrigger>
+          <TabsTrigger value="feed" className="gap-1.5"><Rss className="h-4 w-4" /> Feed & Briefings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="chat" className="mt-4">
+          <RadarChat />
+        </TabsContent>
+
+        <TabsContent value="feed" className="mt-4 space-y-6">
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleColetar} disabled={coletando} className="gap-1.5">
             <RefreshCw className={`h-4 w-4 ${coletando ? "animate-spin" : ""}`} /> {coletando ? "Coletando..." : "Coletar web"}
@@ -278,7 +291,6 @@ export default function Radar() {
             </DialogContent>
           </Dialog>
         </div>
-      </div>
 
       {/* Briefing mais recente */}
       {ultimo && (
@@ -387,6 +399,8 @@ export default function Radar() {
           ))}
         </div>
       )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
