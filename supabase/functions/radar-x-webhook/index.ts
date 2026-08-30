@@ -11,7 +11,7 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-const JANELA_HORAS = 48;
+const JANELA_HORAS = 168; // 7 dias — X de execs/pesquisadores posta esparso; 48h cortava sinal real
 const MAX_CURAR = 80;
 
 type Cand = { fonte_id: string | null; fonte_nome: string; titulo: string; url: string; trecho: string; publicado_em: string | null };
