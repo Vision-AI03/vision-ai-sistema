@@ -36,33 +36,37 @@ async function dispararX() {
     return { disparado: false, mensagem: "Nenhuma fonte do X ativa." };
   }
 
-  // 1) Dispara o run (sem aguardar)
-  const runRes = await fetch(`${APIFY_BASE}/acts/${ACTOR}/runs?token=${APIFY_TOKEN}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      twitterHandles: handles,
-      maxItems: 120,
-      sort: "Latest",
-    }),
-  });
+  // Webhook ad-hoc anexado NA CRIAÇÃO do run, via query param base64.
+  // (Não existe endpoint POST /actor-runs/{id}/webhooks — é assim que a Apify espera.)
+  const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/radar-x-webhook`;
+  const webhooks = btoa(
+    JSON.stringify([
+      {
+        eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+        requestUrl: webhookUrl,
+      },
+    ])
+  );
+
+  // Dispara o run (sem aguardar) já com o webhook anexado
+  const runRes = await fetch(
+    `${APIFY_BASE}/acts/${ACTOR}/runs?token=${APIFY_TOKEN}&webhooks=${webhooks}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        twitterHandles: handles,
+        maxItems: 120,
+        sort: "Latest",
+      }),
+    }
+  );
   const run = await runRes.json();
   if (!runRes.ok) {
     throw new Error(`Apify retornou ${runRes.status}: ${run?.error?.message ?? JSON.stringify(run).slice(0, 300)}`);
   }
   const runId = run?.data?.id;
   if (!runId) throw new Error(`Falha ao iniciar scraper de X: ${JSON.stringify(run).slice(0, 300)}`);
-
-  // 2) Registra webhook de finalização
-  const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/radar-x-webhook`;
-  await fetch(`${APIFY_BASE}/actor-runs/${runId}/webhooks?token=${APIFY_TOKEN}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      eventTypes: ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
-      requestUrl: webhookUrl,
-    }),
-  });
 
   return { disparado: true, apify_run_id: runId, handles: handles.length };
 }

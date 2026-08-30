@@ -22,8 +22,14 @@ async function buscarDataset(datasetId: string, token: string): Promise<any[]> {
   return Array.isArray(data) ? data : [];
 }
 
+function isoSeguro(dt: any): string | null {
+  if (!dt) return null;
+  const d = new Date(dt);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function normalizarTweet(t: any, mapaHandle: Map<string, string>): Cand | null {
-  const texto: string = t.text ?? t.full_text ?? t.content ?? "";
+  const texto: string = t.text ?? t.fullText ?? t.full_text ?? t.content ?? "";
   if (!texto) return null;
   const handle: string = (t.author?.userName ?? t.author?.screen_name ?? t.username ?? t.user?.screen_name ?? "").toLowerCase();
   const id = t.id ?? t.id_str ?? t.tweetId;
@@ -36,13 +42,17 @@ function normalizarTweet(t: any, mapaHandle: Map<string, string>): Cand | null {
     titulo: texto.replace(/\s+/g, " ").trim().slice(0, 140),
     url,
     trecho: texto.replace(/\s+/g, " ").trim().slice(0, 500),
-    publicado_em: dt ? new Date(dt).toISOString() : null,
+    publicado_em: isoSeguro(dt),
   };
 }
 
 async function processar(datasetId: string) {
   const APIFY_TOKEN = Deno.env.get("APIFY_TOKEN")!;
   const tweets = await buscarDataset(datasetId, APIFY_TOKEN);
+  console.log(`radar-x-webhook: dataset ${datasetId} trouxe ${tweets.length} tweets brutos`);
+  if (tweets.length && !tweets[0]?.text && !tweets[0]?.fullText) {
+    console.log("radar-x-webhook: amostra do 1o item (schema):", JSON.stringify(tweets[0]).slice(0, 500));
+  }
 
   // mapa handle -> fonte_id
   const { data: fontes } = await supabase.from("mercado_fontes").select("id, url").eq("tipo", "x");
@@ -69,6 +79,7 @@ async function processar(datasetId: string) {
 
   cands.sort((a, b) => (b.publicado_em ?? "").localeCompare(a.publicado_em ?? ""));
   cands = cands.slice(0, MAX_CURAR);
+  console.log(`radar-x-webhook: ${cands.length} candidatos após filtros (janela ${JANELA_HORAS}h + dedupe)`);
   if (cands.length === 0) return { curados: 0 };
 
   // curadoria DeepSeek
