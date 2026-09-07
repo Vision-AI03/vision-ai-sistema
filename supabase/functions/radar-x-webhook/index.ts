@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callDeepSeekJson, MODEL_DEEPSEEK_CHAT } from "../_shared/deepseek.ts";
+import { segredoDaQueryValido } from "../_shared/webhook.ts";
 
 // Webhook público chamado pelo Apify quando o run de X conclui.
 // Busca os tweets, cura com DeepSeek e insere no feed do radar (mercado_itens).
@@ -128,6 +129,13 @@ async function processar(datasetId: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200 });
+
+  // Endpoint público: sem o `?k=` anexado pelo radar-x-coletar, um POST anônimo
+  // faria a gente buscar um dataset arbitrário no Apify (com nosso token) e
+  // gastar DeepSeek curando o que viesse.
+  if (!segredoDaQueryValido(req, "APIFY_WEBHOOK_SECRET")) {
+    return new Response("unauthorized", { status: 401 });
+  }
 
   let payload: any;
   try { payload = await req.json(); } catch { return new Response("invalid json", { status: 400 }); }

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { segredoDaQueryValido, segredoObrigatorio } from "../_shared/webhook.ts";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 
@@ -29,6 +30,12 @@ async function buscarDataset(datasetId: string, apifyToken: string): Promise<any
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200 });
+  }
+
+  // Endpoint público: só o Apify conhece o `?k=` que o prospeccao-apify anexou
+  // ao registrar o callback. Sem isso, um POST anônimo insere leads no CRM.
+  if (!segredoDaQueryValido(req, "APIFY_WEBHOOK_SECRET")) {
+    return new Response("unauthorized", { status: 401 });
   }
 
   const APIFY_TOKEN = Deno.env.get("APIFY_TOKEN")!;
@@ -208,6 +215,7 @@ Deno.serve(async (req) => {
     const webhookUrl =
       `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
       `?stage=instagram` +
+      `&k=${encodeURIComponent(segredoObrigatorio("APIFY_WEBHOOK_SECRET"))}` +
       `&extracao_id=${encodeURIComponent(extracao_id)}` +
       `&cidade=${encodeURIComponent(cidade)}` +
       `&nicho=${encodeURIComponent(nicho)}` +

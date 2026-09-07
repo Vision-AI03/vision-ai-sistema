@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { segredoObrigatorio } from "../_shared/webhook.ts";
 
 // Dispara um run do scraper de X (Apify) para os handles cadastrados como
 // fontes tipo='x'. Assíncrono: registra webhook -> radar-x-webhook processa.
@@ -38,7 +39,9 @@ async function dispararX() {
 
   // Webhook ad-hoc anexado NA CRIAÇÃO do run, via query param base64.
   // (Não existe endpoint POST /actor-runs/{id}/webhooks — é assim que a Apify espera.)
-  const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/radar-x-webhook`;
+  const webhookUrl =
+    `${Deno.env.get("SUPABASE_URL")}/functions/v1/radar-x-webhook` +
+    `?k=${encodeURIComponent(segredoObrigatorio("APIFY_WEBHOOK_SECRET"))}`;
   const webhooks = btoa(
     JSON.stringify([
       {

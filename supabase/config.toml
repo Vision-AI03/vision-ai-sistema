@@ -90,13 +90,13 @@ verify_jwt = false
 [functions.wa-webhook]
 verify_jwt = false
 
-# Apify (prospecção) -> TODO: sem validação nenhuma hoje. Aceita payload anônimo
-# e insere leads no CRM. Precisa de segredo em query param (padrão do wa-webhook).
+# Apify (prospecção) -> segredo em query param ?k= (APIFY_WEBHOOK_SECRET),
+# anexado por prospeccao-apify ao registrar o callback
 [functions.prospeccao-webhook]
 verify_jwt = false
 
-# Apify (radar X) -> TODO: sem validação nenhuma hoje. Aceita um datasetId anônimo,
-# busca no Apify com nosso token e gasta DeepSeek curando. Mesmo tratamento acima.
+# Apify (radar X) -> segredo em query param ?k= (APIFY_WEBHOOK_SECRET),
+# anexado por radar-x-coletar ao registrar o callback
 [functions.radar-x-webhook]
 verify_jwt = false
 

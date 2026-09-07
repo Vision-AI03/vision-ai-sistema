@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { segredoObrigatorio } from "../_shared/webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +92,7 @@ Deno.serve(async (req) => {
     const webhookUrl =
       `${SUPABASE_URL}/functions/v1/prospeccao-webhook` +
       `?stage=maps` +
+      `&k=${encodeURIComponent(segredoObrigatorio("APIFY_WEBHOOK_SECRET"))}` +
       `&extracao_id=${encodeURIComponent(extracao_id)}` +
       `&cidade=${encodeURIComponent(cidade)}` +
       `&nicho=${encodeURIComponent(nicho)}` +
