@@ -171,7 +171,7 @@ export default function Dashboard() {
 
     const [
       leadsRes, leadsRecentesRes, parcelasRes, recorrenciasRes, custosRes, allLeadsRes, tarefasRes,
-      contratosRes, emailContatosRes, comunicEmailRes,
+      contratosRes, membrosListaRes, comunicEmailRes,
     ] = await Promise.all([
       supabase.from("leads").select("*").gte("criado_em", mesAtualInicio).lte("criado_em", mesAtualFim),
       supabase.from("leads").select("id, nome, empresa, score, status, criado_em").order("criado_em", { ascending: false }).limit(5),
@@ -181,7 +181,7 @@ export default function Dashboard() {
       supabase.from("leads").select("criado_em").gte("criado_em", subDays(now, 30).toISOString()),
       supabase.from("tarefas").select("id, titulo, prioridade, data_vencimento, status, concluida").eq("concluida", false).lte("data_vencimento", today).order("prioridade", { ascending: true }).order("data_vencimento", { ascending: true }).limit(5),
       supabase.from("contratos").select("id, cliente_nome, status, valor_total, criado_em").in("status", ["pendente_assinatura", "rascunho", "enviado"]).order("criado_em", { ascending: false }).limit(5),
-      supabase.from("email_contatos").select("status_envio, enviado_em, aberto_em").gte("created_at", mesAtualInicio),
+      supabase.from("lista_membros").select("status_envio, enviado_em").gte("criado_em", mesAtualInicio),
       supabase.from("comunicacoes").select("status").eq("tipo", "email").eq("direcao", "enviado").gte("criado_em", mesAtualInicio).lte("criado_em", mesAtualFim),
     ]);
 
@@ -237,11 +237,12 @@ export default function Dashboard() {
     // Contratos pendentes
     setContratosPendentes((contratosRes.data as ContratoPendente[]) || []);
 
-    // Email stats
-    const emailContatos = emailContatosRes.data || [];
-    const filaHoje = emailContatos.filter((e: any) => e.status_envio === "pendente").length;
-    const enviadosHoje = emailContatos.filter((e: any) => e.status_envio === "enviado" || e.enviado_em).length;
-    const abertosHoje = emailContatos.filter((e: any) => e.aberto_em).length;
+    // Email stats — lista_membros é o fluxo ativo (listas por nicho).
+    // Status é progressivo: quem abriu já foi enviado, quem respondeu já abriu.
+    const membros = membrosListaRes.data || [];
+    const filaHoje = membros.filter((m: any) => m.status_envio === "pendente").length;
+    const enviadosHoje = membros.filter((m: any) => !!m.enviado_em).length;
+    const abertosHoje = membros.filter((m: any) => m.status_envio === "aberto" || m.status_envio === "respondido").length;
     const txAbertura = enviadosHoje > 0 ? Math.round((abertosHoje / enviadosHoje) * 100) : 0;
     setEmailStats({ fila: filaHoje, enviados: enviadosHoje, abertos: abertosHoje, taxaAbertura: txAbertura });
 

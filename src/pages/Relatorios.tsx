@@ -54,7 +54,9 @@ export default function Relatorios() {
       .select("*")
       .order("semana_inicio", { ascending: false })
       .limit(20);
-    setRelatorios(data || []);
+    // metadata/leads_destaque vêm como Json (que inclui string e number); o tipo
+    // local os trata como objeto. O cast documenta a suposição em um ponto só.
+    setRelatorios((data ?? []) as unknown as Relatorio[]);
     setLoading(false);
   }
 

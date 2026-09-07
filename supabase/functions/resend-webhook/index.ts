@@ -105,6 +105,29 @@ Deno.serve(async (req) => {
     return new Response("Missing type or email_id", { status: 400 });
   }
 
+  // lista_membros é o fluxo de e-mail em uso hoje (listas por nicho). O
+  // send-scheduled-emails grava resend_id ao enviar, mas nada atualizava o status
+  // depois — todo membro ficava "enviado" para sempre, sem abertura nem bounce.
+  // Os status permitidos são os do CHECK da tabela: enviado/aberto/respondido/bounce.
+  //
+  // O Resend não garante ordem de entrega dos eventos, então nunca regredimos:
+  // - delivered é ignorado (o send-scheduled-emails já grava "enviado" no envio);
+  // - opened só promove quem ainda está em "enviado", para não rebaixar um
+  //   "respondido" caso o evento chegue fora de ordem;
+  // - bounce é terminal e sempre vale.
+  if (tipo === "email.opened") {
+    await supabase
+      .from("lista_membros")
+      .update({ status_envio: "aberto" })
+      .eq("resend_id", resendMessageId)
+      .eq("status_envio", "enviado");
+  } else if (tipo === "email.bounced") {
+    await supabase
+      .from("lista_membros")
+      .update({ status_envio: "bounce" })
+      .eq("resend_id", resendMessageId);
+  }
+
   // Log do evento para auditoria
   await supabase.from("resend_eventos").insert({
     resend_message_id: resendMessageId,

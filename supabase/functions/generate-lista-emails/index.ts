@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
 
     const { data: membrosBase } = await supabase
       .from("lista_membros")
-      .select("id, lead_id, email, leads(empresa, nome, origem_metadata)")
+      .select("id, lead_id, email, nome, empresa, leads(empresa, nome, origem_metadata)")
       .eq("lista_id", lista_id)
       .order("criado_em", { ascending: true });
 
@@ -178,7 +178,9 @@ Deno.serve(async (req) => {
       const m = membros[i];
       const varIdx = i % 3;
       const v = variacoes[varIdx];
-      const empresa = m.leads?.empresa || m.leads?.nome || lista.nicho;
+      // Membro da Prospecção traz lead; membro importado de arquivo guarda os
+      // próprios nome/empresa. Cai no nicho só quando não há nenhum dos dois.
+      const empresa = m.leads?.empresa || m.leads?.nome || m.empresa || m.nome || lista.nicho;
       const cidade = m.leads?.origem_metadata?.cidade || lista.cidade;
       const corpo = v.corpo.replace(/\{\{empresa\}\}/g, empresa).replace(/\{\{cidade\}\}/g, cidade);
       const assunto = v.assunto.replace(/\{\{empresa\}\}/g, empresa).replace(/\{\{cidade\}\}/g, cidade);

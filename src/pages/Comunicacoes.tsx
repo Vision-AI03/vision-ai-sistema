@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ListasNichoTab } from "@/components/comunicacoes/ListasNichoTab";
 import { WhatsAppTab } from "@/components/comunicacoes/WhatsAppTab";
 import { HistoricoTab } from "@/components/comunicacoes/HistoricoTab";
-import { ListasTab } from "@/components/comunicacoes/ListasTab";
+import { ImportarListaTab } from "@/components/comunicacoes/ImportarListaTab";
 
 export default function Comunicacoes() {
   const [importerOpen, setImporterOpen] = useState(false);
@@ -32,7 +32,7 @@ export default function Comunicacoes() {
               <SheetTitle>Importar lista manual</SheetTitle>
             </SheetHeader>
             <div className="mt-6">
-              <ListasTab listas={[]} onRefresh={() => {}} />
+              <ImportarListaTab onImported={() => setImporterOpen(false)} />
             </div>
           </SheetContent>
         </Sheet>

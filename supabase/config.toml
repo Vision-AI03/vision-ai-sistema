@@ -27,13 +27,7 @@ verify_jwt = false
 [functions.generate-email]
 verify_jwt = false
 
-[functions.generate-niche-emails]
-verify_jwt = false
-
 [functions.parse-pdf-contacts]
-verify_jwt = false
-
-[functions.send-niche-emails]
 verify_jwt = false
 
 [functions.generate-notifications]
