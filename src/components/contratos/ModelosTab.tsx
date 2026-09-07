@@ -21,7 +21,7 @@ interface Modelo {
   id: string;
   nome: string;
   tipo: string;
-  conteudo_texto: string | null;
+  conteudo: string | null;
   created_at: string;
 }
 
@@ -97,18 +97,18 @@ function ModelCard({ modelo, onDelete, onEdit }: { modelo: Modelo; onDelete: (id
           Adicionado em {format(new Date(modelo.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
         </p>
 
-        {showPreview && modelo.conteudo_texto && (
+        {showPreview && modelo.conteudo && (
           <div className="mt-2 border border-border rounded-md p-3 max-h-48 overflow-y-auto">
             <p className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">
-              {modelo.conteudo_texto.slice(0, 2000)}
-              {modelo.conteudo_texto.length > 2000 && (
-                <span className="text-primary"> ... [mais {modelo.conteudo_texto.length - 2000} caracteres]</span>
+              {modelo.conteudo.slice(0, 2000)}
+              {modelo.conteudo.length > 2000 && (
+                <span className="text-primary"> ... [mais {modelo.conteudo.length - 2000} caracteres]</span>
               )}
             </p>
           </div>
         )}
 
-        {showPreview && !modelo.conteudo_texto && (
+        {showPreview && !modelo.conteudo && (
           <p className="text-xs text-muted-foreground italic">Sem prévia disponível.</p>
         )}
       </CardContent>
@@ -149,12 +149,12 @@ export default function ModelosTab({ modelos, onRefresh }: ModelosTabProps) {
 
       const nomeSemExtensao = file.name.replace(/\.(docx|pdf)$/i, "");
 
-      const { error } = await supabase.from("modelo_contratos").insert({
+      const { error } = await supabase.from("contratos_modelos").insert({
         user_id: user.id,
         nome: nomeSemExtensao,
         tipo: isDocx ? "docx" : "pdf",
-        conteudo_texto: texto || null,
-      } as any);
+        conteudo: texto || null,
+      });
 
       if (error) {
         toast({ title: "Erro ao salvar modelo", variant: "destructive" });
@@ -170,7 +170,7 @@ export default function ModelosTab({ modelos, onRefresh }: ModelosTabProps) {
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from("modelo_contratos").delete().eq("id", id);
+    const { error } = await supabase.from("contratos_modelos").delete().eq("id", id);
     if (error) {
       toast({ title: "Erro ao excluir", variant: "destructive" });
     } else {
@@ -185,20 +185,6 @@ export default function ModelosTab({ modelos, onRefresh }: ModelosTabProps) {
     setEditOpen(true);
   }
 
-  async function handleSaveEdit() {
-    if (!editModelo || !editNome.trim()) return;
-    const { error } = await supabase
-      .from("modelo_contratos")
-      .update({ nome: editNome.trim() } as any)
-      .eq("id", editModelo.id);
-    if (error) {
-      toast({ title: "Erro ao atualizar", variant: "destructive" });
-    } else {
-      toast({ title: "Modelo atualizado!" });
-      setEditOpen(false);
-      onRefresh();
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -266,9 +252,9 @@ export default function ModelosTab({ modelos, onRefresh }: ModelosTabProps) {
                 <Label className="text-xs">Conteúdo de Texto</Label>
                 <textarea
                   className="w-full min-h-[200px] rounded border border-border bg-secondary/30 p-2 text-xs font-mono resize-y focus:outline-none focus:ring-1 focus:ring-primary"
-                  defaultValue={editModelo.conteudo_texto || ""}
+                  defaultValue={editModelo.conteudo || ""}
                   onChange={e => {
-                    if (editModelo) setEditModelo({ ...editModelo, conteudo_texto: e.target.value });
+                    if (editModelo) setEditModelo({ ...editModelo, conteudo: e.target.value });
                   }}
                   placeholder="Cole ou edite o texto do contrato aqui..."
                 />
@@ -282,10 +268,10 @@ export default function ModelosTab({ modelos, onRefresh }: ModelosTabProps) {
               className="gradient-primary text-primary-foreground"
               onClick={async () => {
                 if (!editModelo || !editNome.trim()) return;
-                const { error } = await supabase.from("modelo_contratos").update({
+                const { error } = await supabase.from("contratos_modelos").update({
                   nome: editNome.trim(),
-                  conteudo_texto: editModelo.conteudo_texto,
-                } as any).eq("id", editModelo.id);
+                  conteudo: editModelo.conteudo,
+                }).eq("id", editModelo.id);
                 if (error) {
                   toast({ title: "Erro ao atualizar", variant: "destructive" });
                 } else {

@@ -75,10 +75,10 @@ export default function Contratos() {
     setLoading(true);
     const [cRes, mRes, pRes] = await Promise.all([
       supabase.from("contratos").select("*").order("criado_em", { ascending: false }),
-      supabase.from("modelo_contratos").select("*").order("created_at", { ascending: false }),
+      supabase.from("contratos_modelos").select("*").order("created_at", { ascending: false }),
       supabase
         .from("contratos_preenchidos")
-        .select("*, modelo_contratos(nome)")
+        .select("*, contratos_modelos(nome)")
         .order("created_at", { ascending: false }),
     ]);
     setContratos(cRes.data || []);

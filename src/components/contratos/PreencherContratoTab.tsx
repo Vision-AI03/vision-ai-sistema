@@ -15,10 +15,11 @@ import {
   User, Building2, DollarSign, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from "jszip";
 
-interface Modelo { id: string; nome: string; conteudo_texto: string | null; }
+interface Modelo { id: string; nome: string; conteudo: string | null; }
 interface Lead { id: string; nome: string; empresa: string | null; email: string | null; telefone: string | null; }
 
 interface DadosPrestador {
@@ -181,9 +182,9 @@ export default function PreencherContratoTab({ modelos, onContratoCriado }: Pree
     let error;
 
     if (prestadorId) {
-      ({ error } = await supabase.from("perfil_prestador").update(payload as any).eq("id", prestadorId));
+      ({ error } = await supabase.from("perfil_prestador").update(payload).eq("id", prestadorId));
     } else {
-      const { data, error: insertError } = await supabase.from("perfil_prestador").insert(payload as any).select().single();
+      const { data, error: insertError } = await supabase.from("perfil_prestador").insert(payload).select().single();
       error = insertError;
       if (data) setPrestadorId(data.id);
     }
@@ -214,7 +215,7 @@ export default function PreencherContratoTab({ modelos, onContratoCriado }: Pree
       toast({ title: "Selecione um modelo", variant: "destructive" });
       return;
     }
-    if (!modelo.conteudo_texto) {
+    if (!modelo.conteudo) {
       toast({ title: "Modelo sem conteúdo de texto", description: "Edite o modelo e adicione o texto do contrato.", variant: "destructive" });
       return;
     }
@@ -227,7 +228,7 @@ export default function PreencherContratoTab({ modelos, onContratoCriado }: Pree
     try {
       const { data, error } = await supabase.functions.invoke("fill-contract-model", {
         body: {
-          modelo_texto: modelo.conteudo_texto,
+          modelo_texto: modelo.conteudo,
           dados_prestador: prestador,
           dados_cliente: cliente,
           valores,
@@ -257,10 +258,10 @@ export default function PreencherContratoTab({ modelos, onContratoCriado }: Pree
       modelo_id: modeloSelecionado !== "none" ? modeloSelecionado : null,
       lead_id: leadSelecionado !== "none" ? leadSelecionado : null,
       nome_cliente: cliente.nome_completo,
-      conteudo_preenchido: conteudoGerado,
-      dados_formulario: { prestador, cliente, valores },
+      conteudo_final: conteudoGerado,
+      dados_formulario: { prestador, cliente, valores } as unknown as Json,
       status: "gerado",
-    } as any);
+    });
 
     if (error) {
       toast({ title: "Erro ao salvar", variant: "destructive" });

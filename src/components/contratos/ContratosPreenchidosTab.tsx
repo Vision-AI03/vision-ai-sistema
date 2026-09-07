@@ -18,10 +18,10 @@ import { useToast } from "@/hooks/use-toast";
 interface ContratoPreenchido {
   id: string;
   nome_cliente: string | null;
-  conteudo_preenchido: string | null;
+  conteudo_final: string | null;
   created_at: string;
   modelo_id: string | null;
-  modelo_contratos?: { nome: string } | null;
+  contratos_modelos?: { nome: string } | null;
 }
 
 interface ContratosPreenchidosTabProps {
@@ -90,13 +90,13 @@ export default function ContratosPreenchidosTab({ contratos, onRefresh }: Contra
   const { toast } = useToast();
 
   async function handleDownload(c: ContratoPreenchido) {
-    if (!c.conteudo_preenchido) {
+    if (!c.conteudo_final) {
       toast({ title: "Sem conteúdo para baixar", variant: "destructive" });
       return;
     }
     setDownloading(c.id);
     try {
-      const blob = await gerarDocx(c.conteudo_preenchido);
+      const blob = await gerarDocx(c.conteudo_final);
       const nome = c.nome_cliente ? `contrato_${c.nome_cliente.replace(/\s+/g, "_")}` : `contrato_${c.id.slice(0, 8)}`;
       downloadBlob(blob, `${nome}.docx`);
     } catch (e) {
@@ -140,9 +140,9 @@ export default function ContratosPreenchidosTab({ contratos, onRefresh }: Contra
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{c.nome_cliente || "Cliente não informado"}</p>
                 <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  {c.modelo_contratos?.nome && (
+                  {c.contratos_modelos?.nome && (
                     <Badge variant="outline" className="text-[10px]">
-                      {c.modelo_contratos.nome}
+                      {c.contratos_modelos.nome}
                     </Badge>
                   )}
                   <span className="text-xs text-muted-foreground">
@@ -215,7 +215,7 @@ export default function ContratosPreenchidosTab({ contratos, onRefresh }: Contra
           </DialogHeader>
           <div className="flex-1 overflow-y-auto border border-border rounded-md p-4 bg-secondary/20">
             <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed">
-              {viewContrato?.conteudo_preenchido || "Sem conteúdo disponível."}
+              {viewContrato?.conteudo_final || "Sem conteúdo disponível."}
             </pre>
           </div>
           <div className="flex justify-end pt-2">

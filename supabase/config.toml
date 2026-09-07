@@ -71,8 +71,8 @@ verify_jwt = false
 [functions.radar-relatorio]
 verify_jwt = false
 
-[functions.radar-x-coletar]
-verify_jwt = false
+# (radar-x-coletar NAO entra aqui: e disparado so pelo app, com JWT de usuario.
+#  Deixar verify_jwt=true e o que impede um disparo anonimo de queimar creditos Apify.)
 
 # --- 3. Webhooks externos (validam assinatura ou segredo próprio) ---
 
