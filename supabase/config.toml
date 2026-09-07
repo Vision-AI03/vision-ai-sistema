@@ -1,7 +1,19 @@
 project_id = "sfezwprbanvxsnwgvkhh"
 
-[functions.create-test-user]
-verify_jwt = false
+# ============================================================
+# verify_jwt = false
+# ------------------------------------------------------------
+# Este arquivo é a fonte da verdade: um `supabase functions deploy` sobrescreve
+# o que estiver configurado no dashboard. Toda função que NÃO recebe um JWT de
+# usuário precisa estar declarada aqui, senão o deploy a quebra silenciosamente.
+#
+# Três grupos, e cada função de um grupo valida a si mesma:
+#   1. Chamadas pelo app  -> validam Bearer no código (getClaims/getUser)
+#   2. Chamadas pelo cron -> validam o header X-Cron-Secret (pg_cron não manda JWT)
+#   3. Webhooks externos  -> validam assinatura ou segredo em query param
+# ============================================================
+
+# --- 1. Chamadas pelo app (validam Bearer no próprio código) ---
 
 [functions.send-email]
 verify_jwt = false
@@ -13,9 +25,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.generate-email]
-verify_jwt = false
-
-[functions.fill-contract]
 verify_jwt = false
 
 [functions.generate-niche-emails]
@@ -30,15 +39,6 @@ verify_jwt = false
 [functions.generate-notifications]
 verify_jwt = false
 
-[functions.capture-lead-website]
-verify_jwt = false
-
-[functions.capture-lead-meta]
-verify_jwt = false
-
-[functions.analyze-lead-stage]
-verify_jwt = false
-
 [functions.generate-weekly-report]
 verify_jwt = false
 
@@ -51,11 +51,59 @@ verify_jwt = false
 [functions.process-automation]
 verify_jwt = false
 
-[functions.resend-webhook]
+# --- 2. Chamadas pelo pg_cron (validam X-Cron-Secret; alguns aceitam Bearer também) ---
+
+[functions.analyze-lead-stage]
 verify_jwt = false
 
 [functions.conselho-analista]
 verify_jwt = false
 
 [functions.conselho-orquestrador]
+verify_jwt = false
+
+[functions.send-scheduled-emails]
+verify_jwt = false
+
+[functions.meta-ads-sync]
+verify_jwt = false
+
+[functions.meta-ads-analise]
+verify_jwt = false
+
+[functions.radar-coletar]
+verify_jwt = false
+
+[functions.radar-relatorio]
+verify_jwt = false
+
+[functions.radar-x-coletar]
+verify_jwt = false
+
+# --- 3. Webhooks externos (validam assinatura ou segredo próprio) ---
+
+# Resend -> assinatura Svix (RESEND_WEBHOOK_SECRET)
+[functions.resend-webhook]
+verify_jwt = false
+
+# UazAPI -> segredo em query param ?k= (WA_WEBHOOK_SECRET)
+[functions.wa-webhook]
+verify_jwt = false
+
+# Apify (prospecção) -> TODO: sem validação nenhuma hoje. Aceita payload anônimo
+# e insere leads no CRM. Precisa de segredo em query param (padrão do wa-webhook).
+[functions.prospeccao-webhook]
+verify_jwt = false
+
+# Apify (radar X) -> TODO: sem validação nenhuma hoje. Aceita um datasetId anônimo,
+# busca no Apify com nosso token e gasta DeepSeek curando. Mesmo tratamento acima.
+[functions.radar-x-webhook]
+verify_jwt = false
+
+# --- 4. Captura pública de leads (formulários externos, sem auth por design) ---
+
+[functions.capture-lead-website]
+verify_jwt = false
+
+[functions.capture-lead-meta]
 verify_jwt = false
