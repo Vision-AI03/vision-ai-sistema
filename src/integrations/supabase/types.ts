@@ -1097,11 +1097,13 @@ export type Database = {
           corpo: string | null
           criado_em: string
           email: string
+          empresa: string | null
           enviado_em: string | null
           horario_envio: string | null
           id: string
-          lead_id: string
+          lead_id: string | null
           lista_id: string
+          nome: string | null
           resend_id: string | null
           status_envio: string
           validado: boolean | null
@@ -1112,11 +1114,13 @@ export type Database = {
           corpo?: string | null
           criado_em?: string
           email: string
+          empresa?: string | null
           enviado_em?: string | null
           horario_envio?: string | null
           id?: string
-          lead_id: string
+          lead_id?: string | null
           lista_id: string
+          nome?: string | null
           resend_id?: string | null
           status_envio?: string
           validado?: boolean | null
@@ -1127,11 +1131,13 @@ export type Database = {
           corpo?: string | null
           criado_em?: string
           email?: string
+          empresa?: string | null
           enviado_em?: string | null
           horario_envio?: string | null
           id?: string
-          lead_id?: string
+          lead_id?: string | null
           lista_id?: string
+          nome?: string | null
           resend_id?: string | null
           status_envio?: string
           validado?: boolean | null
