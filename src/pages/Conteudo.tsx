@@ -118,6 +118,7 @@ function Midia({ post }: { post: Post }) {
 
 export default function Conteudo() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [tokens, setTokens] = useState<{ conta: Conta; expira_em: string | null; erro: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState("aprovar");
   const [conta, setConta] = useState<"todas" | Conta>("todas");
@@ -138,6 +139,8 @@ export default function Conteudo() {
       .order("criado_em", { ascending: false });
     if (error) toast({ title: "Erro ao carregar", description: error.message, variant: "destructive" });
     setPosts((data ?? []) as Post[]);
+    const tk = await db.from("instagram_tokens").select("conta, expira_em, erro");
+    setTokens(tk.data ?? []);
     setLoading(false);
   }, [toast]);
 
@@ -284,6 +287,16 @@ export default function Conteudo() {
           </Button>
         </div>
       </div>
+
+      {tokens.filter((t) => t.erro || (t.expira_em && differenceInCalendarDays(new Date(t.expira_em), new Date()) < 14)).map((t) => (
+        <div key={t.conta} className="text-xs rounded-md border border-destructive/30 bg-destructive/10 p-3 flex gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+          <span>
+            <strong>Token do Instagram {CONTAS[t.conta]}</strong>{" "}
+            {t.erro ? `não renovou: ${t.erro}` : `expira ${fmtData(t.expira_em!)}.`} Gere um novo no painel da Meta e atualize o secret IG_TOKEN_{t.conta.toUpperCase()}.
+          </span>
+        </div>
+      ))}
 
       {/* Calendário */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">

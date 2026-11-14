@@ -5,6 +5,7 @@ import { cronOuDono } from "../_shared/auth.ts";
 // Auth: X-Cron-Secret (cron) OU Bearer (dono logado no app).
 // Secrets: IG_USER_ID_VISION_AI, IG_TOKEN_VISION_AI, IG_USER_ID_COT_AI, IG_TOKEN_COT_AI, CRON_SECRET.
 // Opcional: IG_API_VERSION (padrão v26.0).
+// Body {"acao": "renovar_tokens"} renova os tokens (cron semanal) em vez de publicar.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,17 +41,57 @@ interface Credencial {
   base: string;
 }
 
+const CONTAS: Post["conta"][] = ["vision_ai", "cot_ai"];
+
+// Token vivo fica no Vault (renovado toda semana); o secret IG_TOKEN_* é só a semente.
+async function tokenAtual(conta: Post["conta"]): Promise<string> {
+  const { data, error } = await supabase.rpc("ig_token_ler", { p_conta: conta });
+  if (error) console.error(`ig_token_ler ${conta}:`, error.message);
+  return (data as string | null) || Deno.env.get(`IG_TOKEN_${conta.toUpperCase()}`) || "";
+}
+
 // Token do Instagram Login começa com "IG" e usa graph.instagram.com;
 // token do Facebook Login (EAA...) usa graph.facebook.com.
-function credencial(conta: Post["conta"]): Credencial {
+async function credencial(conta: Post["conta"]): Promise<Credencial> {
   const sufixo = conta.toUpperCase();
   const userId = Deno.env.get(`IG_USER_ID_${sufixo}`) ?? "";
-  const token = Deno.env.get(`IG_TOKEN_${sufixo}`) ?? "";
+  const token = await tokenAtual(conta);
   if (!userId || !token) {
     throw new Error(`IG_USER_ID_${sufixo} ou IG_TOKEN_${sufixo} não configurados nos secrets.`);
   }
   const host = token.startsWith("IG") ? "graph.instagram.com" : "graph.facebook.com";
   return { userId, token, base: `https://${host}/${VERSAO}` };
+}
+
+// Renova o token longo (+60 dias) e grava no Vault. Só vale para token do Instagram Login.
+async function renovarTokens(): Promise<Record<string, unknown>[]> {
+  const resultados: Record<string, unknown>[] = [];
+  for (const conta of CONTAS) {
+    try {
+      const token = await tokenAtual(conta);
+      if (!token.startsWith("IG")) throw new Error("token ausente ou não é do Instagram Login");
+      const url = new URL("https://graph.instagram.com/refresh_access_token");
+      url.searchParams.set("grant_type", "ig_refresh_token");
+      url.searchParams.set("access_token", token);
+      const res = await fetch(url);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.access_token) {
+        throw new Error(`refresh_access_token: ${JSON.stringify(json?.error ?? json)}`);
+      }
+      const expiraEm = new Date(Date.now() + Number(json.expires_in ?? 0) * 1000).toISOString();
+      const { error } = await supabase.rpc("ig_token_salvar", {
+        p_conta: conta, p_token: json.access_token, p_expira_em: expiraEm,
+      });
+      if (error) throw new Error(`ig_token_salvar: ${error.message}`);
+      resultados.push({ conta, ok: true, expira_em: expiraEm });
+    } catch (e: any) {
+      const erro = String(e?.message ?? e).slice(0, 1000);
+      await supabase.from("instagram_tokens")
+        .upsert({ conta, erro, atualizado_em: new Date().toISOString() });
+      resultados.push({ conta, ok: false, erro });
+    }
+  }
+  return resultados;
 }
 
 async function graph(
@@ -148,7 +189,7 @@ async function atualizar(id: string, campos: Record<string, unknown>) {
 }
 
 async function publicar(post: Post): Promise<Record<string, unknown>> {
-  const cred = credencial(post.conta);
+  const cred = await credencial(post.conta);
 
   let containerId = post.ig_container_id;
   if (!containerId) {
@@ -204,6 +245,14 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const body = await req.json().catch(() => ({}));
+    if (body?.acao === "renovar_tokens") {
+      const resultados = await renovarTokens();
+      return new Response(JSON.stringify({ ok: resultados.every((r) => r.ok), resultados }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data, error } = await supabase.rpc("fila_posts_reservar", { p_limite: MAX_POR_EXECUCAO });
     if (error) throw new Error(`fila_posts_reservar: ${error.message}`);
 
