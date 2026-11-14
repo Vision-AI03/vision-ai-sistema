@@ -1,0 +1,75 @@
+<!doctype html>
+<!--
+  Base de slide 1080x1350 (4:5) para as duas marcas. Copie para .conteudo/<data>-<slug>/slide-NN.html,
+  troque o atributo data-marca no <body> (vision | cotai), ajuste o caminho do logo e reescreva o conteúdo de <main>.
+  Componentes prontos: .tag, h1 (use <em> para o destaque colorido), .sub, .lista, .numero, .cta, .phone (mockup WhatsApp), .rodape.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root { --bg1:#1A1A2E; --bg2:#0F0F1C; --acc1:#7C7DFF; --acc2:#5B5CF6; --txt:#FFFFFF; --muted:#A0A0B0; --line:rgba(91,92,246,.30); }
+  body[data-marca="cotai"] { --bg1:#141416; --bg2:#0B0B0C; --acc1:#FFD84D; --acc2:#E0A100; --muted:#A1A1AA; --line:rgba(255,216,77,.28); }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { width:1080px; height:1350px; overflow:hidden; }
+  body {
+    font-family:Inter, system-ui, sans-serif; color:var(--txt);
+    background:
+      radial-gradient(900px 600px at 85% -10%, color-mix(in srgb, var(--acc2) 22%, transparent), transparent 70%),
+      linear-gradient(180deg, var(--bg1), var(--bg2));
+    position:relative; padding:80px 80px 70px;
+    display:flex; flex-direction:column;
+  }
+  body::before { /* grid sutil */
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.35;
+    background-image:linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:60px 60px; mask-image:linear-gradient(180deg, #000 0%, transparent 55%);
+  }
+  header { display:flex; align-items:center; gap:18px; position:relative; }
+  header img { width:64px; height:64px; border-radius:50%; object-fit:cover; }
+  header span { font-weight:800; font-size:34px; letter-spacing:-.5px; }
+  main { flex:1; display:flex; flex-direction:column; justify-content:center; gap:34px; position:relative; }
+  .tag { align-self:flex-start; border:1.5px solid var(--line); border-radius:999px; padding:12px 26px;
+         font-size:22px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:var(--muted); }
+  .tag::before { content:"●"; color:var(--acc1); margin-right:12px; }
+  h1 { font-size:96px; line-height:1.0; font-weight:900; letter-spacing:-3px; }
+  h1 em { font-style:normal; background:linear-gradient(90deg, var(--acc1), var(--acc2));
+          -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { font-size:36px; line-height:1.35; color:var(--muted); font-weight:500; }
+  .sub b { color:var(--txt); font-weight:700; }
+  .lista { list-style:none; display:flex; flex-direction:column; gap:22px; }
+  .lista li { font-size:34px; line-height:1.3; padding:24px 28px; border-radius:20px;
+              background:rgba(255,255,255,.04); border:1px solid var(--line); }
+  .lista li b { color:var(--acc1); }
+  .numero { font-size:220px; font-weight:900; line-height:.9; letter-spacing:-8px; color:var(--acc1); }
+  .cta { align-self:flex-start; font-size:34px; font-weight:800; padding:26px 44px; border-radius:18px;
+         background:linear-gradient(90deg, var(--acc1), var(--acc2)); color:#0B0B0C; }
+  body[data-marca="vision"] .cta { color:#fff; }
+  .rodape { display:flex; justify-content:space-between; font-size:22px; color:var(--muted); position:relative; }
+  /* Mockup de celular com WhatsApp */
+  .phone { align-self:center; width:620px; border-radius:56px; padding:18px; background:#1C1C1E;
+           border:2px solid #2C2C2E; box-shadow:0 30px 80px rgba(0,0,0,.6); }
+  .phone .tela { border-radius:42px; overflow:hidden; background:#0B141A; }
+  .phone .topo { background:#1F2C34; padding:26px 28px; display:flex; align-items:center; gap:16px; font-size:26px; font-weight:600; }
+  .phone .topo img { width:52px; height:52px; border-radius:50%; }
+  .phone .topo small { display:block; font-size:18px; color:#8696A0; font-weight:400; }
+  .phone .msgs { padding:24px; display:flex; flex-direction:column; gap:14px; font-size:24px; line-height:1.4; }
+  .msg { max-width:85%; padding:14px 18px; border-radius:14px; background:#1F2C34; }
+  .msg.eu { align-self:flex-end; background:#005C4B; }
+  .msg .hora { display:block; text-align:right; font-size:16px; color:#8696A0; margin-top:4px; }
+</style>
+</head>
+<body data-marca="vision">
+  <header>
+    <img src="../../.claude/skills/conteudo-instagram/assets/logo-vision.png" alt="">
+    <span>Vision AI</span>
+  </header>
+  <main>
+    <div class="tag">Atendimento com IA</div>
+    <h1>Seu cliente mandou mensagem às 23h. <em>Quem respondeu?</em></h1>
+    <p class="sub">Um agente de IA no WhatsApp <b>responde em segundos</b>, qualifica e agenda — enquanto você dorme.</p>
+  </main>
+  <div class="rodape"><span>@agenciavisionai</span><span>arrasta →</span></div>
+</body>
+</html>
