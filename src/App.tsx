@@ -29,6 +29,7 @@ import Anuncios from "./pages/Anuncios";
 import Radar from "./pages/Radar";
 import Saude from "./pages/Saude";
 import Conselho from "./pages/Conselho";
+import Conteudo from "./pages/Conteudo";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="/radar" element={<Radar />} />
         <Route path="/prospeccao" element={<Prospeccao />} />
         <Route path="/conselho" element={<Conselho />} />
+        <Route path="/conteudo" element={<Conteudo />} />
         <Route path="/configuracoes/automacoes" element={<Automacoes />} />
         <Route path="/configuracoes/credenciais" element={<Credenciais />} />
         <Route path="/configuracoes/backup" element={<Backup />} />
