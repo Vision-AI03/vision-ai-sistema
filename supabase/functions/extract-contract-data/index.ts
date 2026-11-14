@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ehDono } from "../_shared/auth.ts";
 import { callClaudeWithTool, MODEL_HAIKU } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
@@ -29,7 +30,7 @@ Deno.serve(async (req) => {
 
   const token = authHeader.replace("Bearer ", "");
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
+  if (claimsError || !claimsData?.claims || !(await ehDono(claimsData.claims.sub as string))) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

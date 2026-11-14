@@ -1,11 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const SEGREDO = Deno.env.get("WA_WEBHOOK_SECRET")!;
+import { segredoDaQueryValido } from "../_shared/webhook.ts";
 
 Deno.serve(async (req) => {
-  // Segredo via query param (UazAPI nem sempre permite header custom)
-  const url = new URL(req.url);
-  if (url.searchParams.get("k") !== SEGREDO) {
+  // Segredo via query param (UazAPI nem sempre permite header custom).
+  // Comparação em tempo constante e falha fechado se o secret não existir.
+  if (!segredoDaQueryValido(req, "WA_WEBHOOK_SECRET")) {
     return new Response("unauthorized", { status: 401 });
   }
   if (req.method !== "POST") {

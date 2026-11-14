@@ -10,6 +10,10 @@ Sistema de gestão interno da Vision AI (agência de IA, founder solo: Wesley).
 - Prompts/mudanças cirúrgicas e não-disruptivas: nunca refatorar módulos inteiros sem pedido explícito.
 - SQL (migrations) e mudanças de frontend sempre separados e identificados.
 - Ao final de qualquer mudança, incluir comandos de deploy (git add/commit/push — Vercel auto-deploy via GitHub).
+- Segurança (single-tenant, só o dono acessa):
+  - Edge Function nova autoriza com `_shared/auth.ts` (`donoDoBearer`, `ehDono`, `cronOuDono`). Nunca só `startsWith("Bearer ")` nem `getClaims()` sem checar o dono — a anon key é pública e é um JWT válido.
+  - Tabela nova recebe a policy restritiva `somente_dono` (ver migration `20261113120000_blindagem_seguranca.sql`). RPC `SECURITY DEFINER` nova: `revoke execute ... from anon, public`.
+  - Signup público está desligado no Auth — não religar.
 
 ## Stack
 - Frontend: React 18 + Vite + TypeScript + Tailwind + shadcn/ui (Radix), TanStack Query, dnd-kit (Kanban). Desenvolvimento 100% via Claude Code.

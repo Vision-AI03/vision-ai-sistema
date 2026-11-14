@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callClaude, MODEL_SONNET } from "../_shared/anthropic.ts";
+import { cronOuDono } from "../_shared/auth.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -22,22 +23,27 @@ function toDateStr(d: Date) {
   return d.toISOString().split("T")[0];
 }
 
-Deno.serve(async (req) => {
-  let targetUserId: string | null = null;
-  try {
-    const body = await req.json();
-    targetUserId = body?.user_id || null;
-  } catch { /* cron call with empty body */ }
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-cron-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
 
-  // Get all active users (or single user)
-  let userIds: string[] = [];
-  if (targetUserId) {
-    userIds = [targetUserId];
-  } else {
-    // Single-tenant: o dono canônico do sistema (ver owner_id())
-    const { data: owner } = await supabase.rpc("owner_id");
-    userIds = owner ? [owner as string] : [];
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Só o cron (X-Cron-Secret) ou o dono logado. O relatório é sempre do dono:
+  // o user_id do body é ignorado para não gerar/gravar em nome de terceiros.
+  if (!(await cronOuDono(req))) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
+
+  // Single-tenant: o dono canônico do sistema (ver owner_id())
+  const { data: owner } = await supabase.rpc("owner_id");
+  const userIds: string[] = owner ? [owner as string] : [];
 
   const results: any[] = [];
 
@@ -52,7 +58,7 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({ results }), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
 

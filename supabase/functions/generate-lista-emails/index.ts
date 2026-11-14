@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ehDono } from "../_shared/auth.ts";
 import { callClaude, MODEL_SONNET } from "../_shared/anthropic.ts";
 
 const corsHeaders = {
@@ -146,7 +147,7 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } },
   );
   const { data: { user } } = await supabaseAuth.auth.getUser(authHeader.replace("Bearer ", ""));
-  if (!user) {
+  if (!user || !(await ehDono(user.id))) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

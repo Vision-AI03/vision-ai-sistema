@@ -72,7 +72,11 @@ verify_jwt = false
 verify_jwt = false
 
 # (radar-x-coletar NAO entra aqui: e disparado so pelo app, com JWT de usuario.
-#  Deixar verify_jwt=true e o que impede um disparo anonimo de queimar creditos Apify.)
+#  ATENCAO: verify_jwt=true NAO basta — a anon key publica e um JWT valido e passa
+#  no gateway. Quem protege de verdade e o cronOuDono() de _shared/auth.ts.)
+#
+# Regra para TODA funcao nova: autorizar com _shared/auth.ts (donoDoBearer, ehDono,
+# cronOuDono). Nunca aceitar so `startsWith("Bearer ")` nem getClaims() sem checar o dono.
 
 # --- 3. Webhooks externos (validam assinatura ou segredo próprio) ---
 
@@ -100,4 +104,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.capture-lead-meta]
+verify_jwt = false
+
+[functions.publicar-instagram]
 verify_jwt = false

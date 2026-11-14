@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { cronOuDono } from "../_shared/auth.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*" };
 const CAP_DIARIO = 30;
@@ -6,15 +7,9 @@ const CAP_DIARIO = 30;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Autorização: pg_cron passa X-Cron-Secret; um usuário autenticado também pode disparar manualmente.
-  const cronSecret = req.headers.get("X-Cron-Secret");
-  const auth = req.headers.get("Authorization");
-  const expectedSecret = Deno.env.get("CRON_SECRET");
-  const cronOk = expectedSecret && cronSecret === expectedSecret;
-  if (!cronOk) {
-    if (!auth?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-    }
+  // Autorização: pg_cron passa X-Cron-Secret; o dono logado também pode disparar manualmente.
+  if (!(await cronOuDono(req))) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

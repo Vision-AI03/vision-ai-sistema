@@ -6,6 +6,27 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Valida X-Hub-Signature-256 (HMAC-SHA256 do corpo cru com o App Secret do Meta).
+// Sem META_APP_SECRET configurado, aceita com aviso no log: o leadgen_id ainda é
+// conferido na Graph API com o token da página, então ID inventado não vira lead.
+async function assinaturaMetaValida(req: Request, raw: string): Promise<boolean> {
+  const segredo = Deno.env.get("META_APP_SECRET");
+  if (!segredo) {
+    console.warn("META_APP_SECRET não configurado — webhook do Meta aceito sem verificar assinatura");
+    return true;
+  }
+  const recebida = req.headers.get("X-Hub-Signature-256") ?? "";
+  const chave = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(segredo), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", chave, new TextEncoder().encode(raw)));
+  const esperada = "sha256=" + Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("");
+  if (recebida.length !== esperada.length) return false;
+  let diff = 0;
+  for (let i = 0; i < esperada.length; i++) diff |= recebida.charCodeAt(i) ^ esperada.charCodeAt(i);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -31,7 +52,11 @@ Deno.serve(async (req) => {
   // POST: New lead notification from Meta
   if (req.method === "POST") {
     try {
-      const payload = await req.json();
+      const raw = await req.text();
+      if (!(await assinaturaMetaValida(req, raw))) {
+        return new Response("unauthorized", { status: 401, headers: corsHeaders });
+      }
+      const payload = JSON.parse(raw);
 
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
@@ -120,8 +145,7 @@ Deno.serve(async (req) => {
             leadId = newLead.id;
 
             // Notification
-            const { data: users } = await supabase.auth.admin.listUsers();
-            const userId = users?.users?.[0]?.id;
+            const { data: userId } = await supabase.rpc("owner_id");
             if (userId) {
               await supabase.from("notificacoes").insert({
                 user_id: userId,
@@ -144,7 +168,7 @@ Deno.serve(async (req) => {
     } catch (err) {
       console.error("capture-lead-meta error:", err);
       // Still return 200 so Meta doesn't retry with bad payload
-      return new Response(JSON.stringify({ error: String(err) }), {
+      return new Response(JSON.stringify({ error: "internal error" }), {
         status: 200,
         headers: corsHeaders,
       });

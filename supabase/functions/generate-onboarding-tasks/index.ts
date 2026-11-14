@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callClaudeMessages, MODEL_HAIKU } from "../_shared/anthropic.ts";
+import { donoDoBearer } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,8 +19,10 @@ const TIPO_LABELS: Record<string, string> = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  // Valida o JWT de verdade e exige o dono; as tarefas são sempre dele
+  // (o user_id do body é ignorado).
+  const user_id = await donoDoBearer(req);
+  if (!user_id) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -32,9 +35,9 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { contrato_id, user_id } = await req.json();
-    if (!contrato_id || !user_id) {
-      return new Response(JSON.stringify({ error: "contrato_id and user_id are required" }), {
+    const { contrato_id } = await req.json();
+    if (!contrato_id) {
+      return new Response(JSON.stringify({ error: "contrato_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
