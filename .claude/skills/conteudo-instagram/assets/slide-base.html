@@ -28,6 +28,7 @@
   }
   header { display:flex; align-items:center; gap:18px; position:relative; }
   header img { width:64px; height:64px; border-radius:50%; object-fit:cover; }
+  body[data-marca="vision"] header img { width:auto; height:64px; border-radius:0; object-fit:contain; }
   header span { font-weight:800; font-size:34px; letter-spacing:-.5px; }
   main { flex:1; display:flex; flex-direction:column; justify-content:center; gap:34px; position:relative; }
   .tag { align-self:flex-start; border:1.5px solid var(--line); border-radius:999px; padding:12px 26px;
@@ -62,7 +63,7 @@
 </head>
 <body data-marca="vision">
   <header>
-    <img src="../../.claude/skills/conteudo-instagram/assets/logo-vision.png" alt="">
+    <img src="../../.claude/skills/conteudo-instagram/assets/logo-vision-transparente.png" alt="">
     <span>Vision AI</span>
   </header>
   <main>
