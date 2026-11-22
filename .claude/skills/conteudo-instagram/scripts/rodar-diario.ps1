@@ -8,7 +8,7 @@ $logs = Join-Path $repo ".conteudo\logs"
 New-Item -ItemType Directory -Force $logs | Out-Null
 $log = Join-Path $logs ((Get-Date -Format "yyyy-MM-dd_HHmm") + ".log")
 
-$prompt = "/conteudo-instagram Rodada diaria automatica: leia o estado da fila, refaca primeiro os pedidos de alteracao e depois produza o feed que falta, seguindo a skill a risca (inclusive a revisao visual)."
+$prompt = "/conteudo-instagram Rodada diaria automatica: leia o estado da fila, refaca primeiro os pedidos de alteracao e depois produza o feed e os Reels que faltam, seguindo a skill a risca (inclusive a revisao visual)."
 $ferramentas = "Bash,Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,Skill"
 
 "[$(Get-Date -Format s)] inicio" | Out-File -FilePath $log -Encoding utf8

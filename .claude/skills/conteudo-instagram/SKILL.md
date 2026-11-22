@@ -15,7 +15,7 @@ Você é o produtor de conteúdo das duas marcas. Seu trabalho termina quando o 
 - Sobre a COT-AI, só afirme o que está em `referencias/cotai.md`. Sobre a Vision AI, o que está em `referencias/solutions.md`. Não invente funcionalidade, cliente, depoimento ou resultado.
 - Não nomeie clientes (ex.: AJM) — use "uma transportadora do interior de SP".
 - Não repita pauta: confira `pautas_recentes` antes de escolher o tema.
-- Sem o número real de WhatsApp ou link: a CTA é sempre "link na bio" ou palavra-chave na DM.
+- A CTA é sempre "link na bio". Não peça para comentar nem mandar palavra-chave na DM (pedido do Wesley, 2026-11-22).
 
 ## Passo 1 — Ler o estado da fila
 ```
@@ -26,9 +26,9 @@ Devolve `faltando` (quanto produzir por conta e tipo nos próximos 8 dias), `ped
 Ordem de trabalho:
 1. **Pedidos de alteração** primeiro (eles travam o calendário).
 2. **Feed** que falta (`<conta>.feed.produzir`).
-3. **Reels**: veja a seção Reels no fim. Enquanto o pipeline de vídeo não estiver liberado, pule.
+3. **Reels** que falta (`<conta>.reels.produzir`): siga a seção Reels no fim.
 
-Limite por execução: no máximo 4 peças novas (para caber numa rodada e não lotar a aprovação). Se `produzir` for 0 em tudo e não houver pedido, encerre dizendo que a fila está abastecida.
+Limite por execução: no máximo 4 peças novas (para caber numa rodada e não lotar a aprovação), das quais no máximo 2 Reels — e, se faltar Reels, pelo menos 1 entra mesmo que ainda falte feed. Se `produzir` for 0 em tudo e não houver pedido, encerre dizendo que a fila está abastecida.
 
 ## Passo 2 — Escolher a pauta
 Leia a marca antes de criar:
@@ -108,7 +108,40 @@ node .claude/skills/conteudo-instagram/scripts/fila.mjs revisar <id> .conteudo/<
 O post volta para "Para aprovar". Se o pedido for impossível (ex.: dado que não existe), refaça da melhor forma e explique na `pauta`.
 
 ## Reels
-Pipeline de vídeo (animação com mockup + narração com voz clonada do Wesley; depois avatar) ainda em construção. Até esta seção ser atualizada, não produza Reels — os horários das 19h ficam vazios no calendário e isso é esperado.
+Vídeo vertical 1080×1920 de 30–45s: cenas HTML animadas + narração em voz (ElevenLabs) + legenda. Pauta, pesquisa, regras de marca e legenda do post são as mesmas do feed (Passos 2, 3 e 5). Não reaproveite a pauta de um post de feed recente.
+
+**Roteiro (6–8 cenas, ~110–150 palavras de fala no total):**
+gancho (0–3s: dor do cliente, frase curta, nunca a marca) → o problema acontecendo no celular (ex.: cliente chamando sem resposta) → consequência/dado (com fonte na tela, texto pequeno) → a virada (a solução) → solução em ação no celular (conversa completa, com "digitando…") → um segundo benefício (no celular ou em lista) → CTA.
+**CTA do Reels é sempre "link na bio"** (ex.: "Clica no link da bio e pede seu diagnóstico gratuito" + botão `.cta` "Link na bio →"). Nunca peça para comentar palavra-chave. A legenda do post termina com a mesma CTA.
+**O celular é o protagonista:** pelo menos 2 cenas com o WhatsApp no celular, cada uma com uma conversa que faz sentido sozinha. Fala em português falado, frases curtas, números por extenso ("onze da noite", não "23h"), sem sigla que a voz leia errado.
+
+**Cenas:**
+1. Copie a base inteira com `cp`: `assets/reels-base.html` → `.conteudo/<pasta>/cena-01.html`, `cena-02.html`… e edite cada uma com Edit (mesmas regras de marca/logo do Passo 4). Se for gerar por script, recorte a partir de `<body data-marca` — o comentário do topo cita `<main>` e um regex desde o início quebra o arquivo (vídeo branco).
+2. Uma ideia por cena, pouco texto: `h1` de até ~8 palavras; texto mínimo 32px.
+3. Anime a entrada dos elementos com `.entra` ou `.pop` e o atraso em `style="--d:0.8s"` (tempo 0 = início da cena). Distribua as entradas ao longo da fala.
+4. Celular: copie o modelo comentado no fim da base (moldura, ilha, barra de status, cabeçalho do WhatsApp, barra de mensagem). Verde à direita (`.msg.eu`) = quem segura o celular; cinza = o outro lado. Cada mensagem com `class="msg chega" style="--d:…"`, uma a cada 1,5–2s; antes de cada resposta do agente, um `.digitando chega` com `--d` e `--ate` (= `--d` da resposta). Horários coerentes com a história (status bar = hora da última mensagem). Nome do contato fictício e genérico do nicho ("Clínica Bem Estar", "Transportes Rota Sul"). Cena só com o celular: sem legenda e com `duracao` que cubra todas as mensagens + 1s. Celular com título na mesma cena: `class="phone menor"`.
+5. A legenda da fala entra sozinha no `<div data-legenda>`. Apague esse div nas cenas de celular, na de CTA e onde o texto da tela já repete a fala.
+
+**Roteiro em `.conteudo/<pasta>/roteiro.json`:**
+```json
+{ "cenas": [
+  { "html": "cena-01.html", "fala": "Seu cliente mandou mensagem às onze da noite. Quem respondeu?" },
+  { "html": "cena-02.html", "fala": "Um agente de IA responde na hora e já agenda.", "duracao": 5 }
+] }
+```
+A cena dura a fala + 0,5s; use `duracao` (segundos) para segurar mais (ex.: mockup com várias mensagens) ou em cena sem fala. `voz` e `musica` são opcionais (padrão: voz "Lucas", sem música).
+
+**Gerar e revisar (obrigatório):**
+```
+node .claude/skills/conteudo-instagram/scripts/reels.mjs .conteudo/<pasta>/roteiro.json
+```
+Leva ~1 min a cada 10s de vídeo. Gera `reel.mp4`, `capa.jpg` (fim da cena 1) e `folha.jpg` (fim de cada cena). Abra a `folha.jpg` com Read e confira texto cortado, sobreposição com a legenda, contraste e português; para ver um momento da animação: `ffmpeg -loglevel error -y -ss <segundo> -i reel.mp4 -frames:v 1 -vf scale=540:-1 quadro.jpg`. Corrija e gere de novo (a narração fica em cache; só texto de fala alterado gasta crédito).
+
+**Subir e enfileirar:**
+```
+node .claude/skills/conteudo-instagram/scripts/midia.mjs <conta> <slug> .conteudo/<pasta>/reel.mp4 .conteudo/<pasta>/capa.jpg
+```
+No `post.json`: `"tipo": "reels"`, `"midia_urls": [<url do .mp4>]`, `"capa_url": <url do .jpg>`, e a `pauta` com o roteiro resumido. Depois `fila.mjs inserir` (ou `revisar`, se for pedido de alteração de um Reels).
 
 ## Fim da execução
 Responda com um resumo curto: o que foi criado (conta, tipo, pauta) e o que foi refeito. Não cole as legendas inteiras.
