@@ -24,6 +24,7 @@ node .claude/skills/operario-ia/scripts/operario.mjs falhar <id> "<motivo>"
 - Objetivo dos próximos 90 dias: **subir o MRR**.
 - Funil: a COT-AI (cotação de frete com IA para transportadoras) é a porta de entrada. Abordado → Respondeu → Rotas recebidas → Cotação enviada → Onboarding marcado → Implantação (R$ 500, 1ª mensalidade 30 dias depois) → Assinante → Upsell (agente de IA, sistema sob medida, site, automação).
 - O gargalo declarado é a conversão: os leads respondem e esfriam antes da call.
+- `clientes_cotai` traz cada empresa da COT-AI com um `sinal`: esfriou_trial, ativando, pagante, pronto_upsell, risco_churn, inadimplente, cancelada ou interna (cortesias, demos e parceiros: ignore nas análises). Trial que esfriou e pagante em risco são prioridade de MRR. Hoje ainda não há pagante.
 - Estágios no banco: `contatado` (= Abordado), `respondeu`, `rotas_recebidas`, `cotacao_enviada`, `onboarding_agendado`, `implantacao`, `assinante`, `upsell`, `perdido`. Contrato `tipo_servico = cot_ai` é assinatura da COT-AI.
 
 ## Regras que não se quebram

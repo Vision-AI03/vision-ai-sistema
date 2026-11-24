@@ -10,6 +10,8 @@ import LeadDrawer from "@/components/crm/LeadDrawer";
 import AddLeadDialog from "@/components/crm/AddLeadDialog";
 import FecharImplantacaoDialog from "@/components/crm/FecharImplantacaoDialog";
 import { ESTAGIOS, ESTAGIO_IMPLANTACAO } from "@/components/crm/estagios";
+import RadarCotai from "@/components/crm/RadarCotai";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Lead = Tables<"leads">;
@@ -149,6 +151,13 @@ export default function CRM() {
         <AddLeadDialog />
       </div>
 
+      <Tabs defaultValue="pipeline">
+        <TabsList>
+          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="cotai">Clientes COT-AI</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pipeline">
       <div className="overflow-x-auto pb-4">
         <DndContext
           sensors={sensors}
@@ -178,6 +187,17 @@ export default function CRM() {
           </DragOverlay>
         </DndContext>
       </div>
+        </TabsContent>
+
+        <TabsContent value="cotai">
+          <RadarCotai
+            onAbrirLead={(leadId) => {
+              const lead = leads.find((l) => l.id === leadId);
+              if (lead) handleLeadClick(lead);
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       <FecharImplantacaoDialog
         lead={implantacaoLead}

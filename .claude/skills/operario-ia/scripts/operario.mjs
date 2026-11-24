@@ -134,6 +134,18 @@ async function dadosConteudo() {
   return get(`fila_posts?select=conta,tipo,status,pauta,agendado_para,publicado_em,erro&criado_em=gte.${iso(Date.now() - 14 * DIA)}`);
 }
 
+// Radar de clientes da COT-AI (assinatura, uso e sinal por empresa), via Edge Function cotai-radar
+async function dadosCotai() {
+  const res = await fetch(`https://${PROJETO}.supabase.co/functions/v1/cotai-radar`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${KEY}`, apikey: KEY, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || `cotai-radar ${res.status}`);
+  return j.empresas.map(({ empresa_id, cnpj, ...resto }) => resto);
+}
+
 async function anteriores(tipo) {
   return get(`fila_ia?select=concluido_em,resultado_md&tipo=eq.${tipo}&status=eq.concluido&order=concluido_em.desc&limit=2`);
 }
@@ -143,10 +155,12 @@ async function coletar(tipo) {
   switch (tipo) {
     case "relatorio_semanal":
       return { comercial: await tentar(dadosComerciais), financeiro: await tentar(dadosFinanceiros),
+               clientes_cotai: await tentar(dadosCotai),
                conteudo_14d: await tentar(dadosConteudo), relatorios_anteriores: await tentar(() => anteriores(tipo)) };
     case "briefing_conselho":
       return { comercial: await tentar(dadosComerciais), financeiro: await tentar(dadosFinanceiros),
                anuncios: await tentar(dadosAnuncios), conteudo_14d: await tentar(dadosConteudo),
+               clientes_cotai: await tentar(dadosCotai),
                radar_mercado: await tentar(() => get("mercado_relatorios?select=cadencia,periodo_inicio,periodo_fim,resumo,gerado_em&order=gerado_em.desc&limit=2")),
                briefings_anteriores: await tentar(() => anteriores(tipo)) };
     case "analise_anuncios":
