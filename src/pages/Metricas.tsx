@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { ESTAGIO_LABEL } from "@/components/crm/estagios";
+import PainelOperario from "@/components/operario/PainelOperario";
 
 interface MetricCard {
   label: string;
@@ -146,6 +147,8 @@ export default function Metricas() {
         <h1 className="text-2xl font-bold">Métricas & Inteligência</h1>
         <p className="text-sm text-muted-foreground mt-1">Visão analítica do pipeline, IA e comunicações</p>
       </div>
+
+      <PainelOperario tipo="analise_metricas" />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

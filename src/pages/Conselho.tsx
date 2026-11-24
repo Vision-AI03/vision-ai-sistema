@@ -16,6 +16,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import PainelOperario from "@/components/operario/PainelOperario";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -54,7 +55,6 @@ export default function Conselho() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [gerando, setGerando] = useState(false);
   const { toast } = useToast();
 
   const carregar = useCallback(async () => {
@@ -68,20 +68,6 @@ export default function Conselho() {
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
-
-  const gerarAgora = async () => {
-    setGerando(true);
-    try {
-      await supabase.functions.invoke("conselho-analista", { body: {} });
-      await supabase.functions.invoke("conselho-orquestrador", { body: { force: true } });
-      toast({ title: "Análise gerada", description: "Insights e briefing atualizados." });
-      await carregar();
-    } catch (e) {
-      toast({ title: "Erro ao gerar", description: String(e), variant: "destructive" });
-    } finally {
-      setGerando(false);
-    }
-  };
 
   const mudarStatus = async (id: string, status: string, msg: string) => {
     const { error } = await db.from("insights").update({ status, atualizado_em: new Date().toISOString() }).eq("id", id);
@@ -104,11 +90,9 @@ export default function Conselho() {
             Análise de IA por setor + síntese priorizada. Insights são sugestões — você decide.
           </p>
         </div>
-        <Button size="sm" onClick={gerarAgora} disabled={gerando}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${gerando ? "animate-spin" : ""}`} />
-          {gerando ? "Gerando…" : "Gerar agora"}
-        </Button>
       </div>
+
+      <PainelOperario tipo="briefing_conselho" />
 
       {loading ? (
         <div className="space-y-3">
@@ -117,42 +101,6 @@ export default function Conselho() {
         </div>
       ) : (
         <>
-          {/* Briefing */}
-          {briefing ? (
-            <Card className="border-primary/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" /> Briefing {briefing.cadencia}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">
-                    {formatDistanceToNow(new Date(briefing.gerado_em), { addSuffix: true, locale: ptBR })}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {briefing.resumo && <p className="text-sm">{briefing.resumo}</p>}
-                {(briefing.prioridades ?? []).length > 0 && (
-                  <div className="space-y-1.5">
-                    {(briefing.prioridades ?? []).map((p, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-sm">
-                        <Badge className={`text-[10px] shrink-0 ${prioClass(p.prioridade || "media")}`}>{p.dominio || "geral"}</Badge>
-                        <span><strong>{p.titulo}</strong>{p.porque ? ` — ${p.porque}` : ""}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {(briefing.destaques ?? []).length > 0 && (
-                  <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
-                    {(briefing.destaques ?? []).map((d, i) => <li key={i}>{d}</li>)}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <Card><CardContent className="p-6 text-sm text-muted-foreground text-center">
-              Nenhum briefing ainda. Clique em "Gerar agora" (ou aguarde a rodada diária).
-            </CardContent></Card>
-          )}
-
           {/* Insights por setor */}
           {DOMINIOS.map((dom) => {
             const items = insights

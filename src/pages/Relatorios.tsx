@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import PainelOperario from "@/components/operario/PainelOperario";
 
 interface Relatorio {
   id: string;
@@ -181,6 +182,8 @@ export default function Relatorios() {
           {generating ? "Gerando..." : "Gerar Relatório Agora"}
         </Button>
       </div>
+
+      <PainelOperario tipo="relatorio_semanal" />
 
       {relatorios.length === 0 ? (
         <Card className="bg-card border-border">

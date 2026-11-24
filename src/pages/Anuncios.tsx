@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import PainelOperario from "@/components/operario/PainelOperario";
 
 // tabelas novas ainda não estão nos types gerados — cast pontual
 const db = supabase as any;
@@ -234,6 +235,8 @@ export default function Anuncios() {
           </Button>
         </div>
       </div>
+
+      <PainelOperario tipo="analise_anuncios" />
 
       {semDados ? (
         <Card>
