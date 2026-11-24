@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import LeadDrawer from "@/components/crm/LeadDrawer";
+import FilaFollowup from "@/components/hoje/FilaFollowup";
 import { ESTAGIO_LABEL } from "@/components/crm/estagios";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -265,6 +266,9 @@ export default function Hoje() {
           )}
         </p>
       </div>
+
+      {/* Conversas do WhatsApp paradas no funil */}
+      <FilaFollowup onAbrirLead={abrirLead} />
 
       {/* Grid 2x2 dos blocos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
