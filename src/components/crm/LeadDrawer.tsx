@@ -13,6 +13,7 @@ import {
 import { WhatsAppTab } from "@/components/crm/WhatsAppTab";
 import { NotasTab } from "@/components/crm/NotasTab";
 import { EnriquecimentoTab } from "@/components/crm/EnriquecimentoTab";
+import { ESTAGIOS } from "@/components/crm/estagios";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -26,13 +27,7 @@ import type { Tables } from "@/integrations/supabase/types";
 type Lead = Tables<"leads">;
 type Comunicacao = Tables<"comunicacoes">;
 
-const COLUNAS = [
-  { value: "novo", label: "Novo" },
-  { value: "enriquecido", label: "Enriquecido" },
-  { value: "contatado", label: "Contatado" },
-  { value: "reuniao_agendada", label: "Reunião Agendada" },
-  { value: "perdido", label: "Perdido" },
-];
+const COLUNAS = ESTAGIOS.map((e) => ({ value: e.id, label: e.title }));
 
 function getScoreColor(score: number | null) {
   const s = score ?? 0;

@@ -40,6 +40,7 @@ const TIPO_SERVICO_LABELS: Record<string, string> = {
   automacao: "Automação",
   sistema: "Sistema",
   manutencao: "Manutenção",
+  cot_ai: "COT-AI",
 };
 
 export default function Contratos() {

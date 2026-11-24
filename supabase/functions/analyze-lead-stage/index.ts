@@ -9,10 +9,14 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-// respondeu (4) fica entre contatado e reuniao — setado pelo bridge do WhatsApp
+// Funil COT-AI. respondeu é setado pelo bridge do WhatsApp; a IA só avança até
+// onboarding_agendado — implantacao/assinante/upsell envolvem dinheiro e são manuais.
 const STAGE_ORDER: Record<string, number> = {
-  novo: 1, enriquecido: 2, contatado: 3, respondeu: 4, reuniao_agendada: 5, perdido: 99,
+  novo: 1, enriquecido: 2, contatado: 3, respondeu: 4,
+  rotas_recebidas: 5, cotacao_enviada: 6, onboarding_agendado: 7, reuniao_agendada: 7,
+  implantacao: 8, assinante: 9, upsell: 10, perdido: 99,
 };
+const ESTAGIOS_IA = ["respondeu", "rotas_recebidas", "cotacao_enviada", "onboarding_agendado", "perdido"];
 
 let ownerCache: string | null = null;
 async function resolverDono(fallback?: string): Promise<string | null> {
@@ -57,21 +61,23 @@ async function analisarLead(leadId: string, userId: string): Promise<{ ok: boole
     ? Math.floor((Date.now() - new Date(ultimaResposta.enviada_em).getTime()) / 86400000)
     : 999;
 
-  const prompt = `Você é um classificador de leads comerciais especializado em vendas B2B de serviços.
+  const prompt = `Você é um classificador de leads comerciais da COT-AI (cotação de frete com IA para transportadoras).
 
-Analise a conversa abaixo entre um VENDEDOR e um CLIENTE POTENCIAL.
-Classifique em qual estágio do funil de vendas essa negociação está.
+O funil é: o VENDEDOR aborda e explica a COT-AI → pede 2 ou 3 rotas do cliente → devolve as cotações feitas na COT-AI → marca uma call de onboarding (implantação paga).
+
+Analise a conversa abaixo entre o VENDEDOR e o CLIENTE e classifique o estágio.
 
 ESTÁGIOS POSSÍVEIS:
-- "contatado": O cliente respondeu, mas sem demonstrar interesse claro no serviço
-- "reuniao_agendada": Foi combinada uma reunião, call, visita ou demonstração
+- "respondeu": O cliente respondeu, mas ainda não enviou rotas
+- "rotas_recebidas": O cliente enviou rotas (origem/destino, cargas) para cotar
+- "cotacao_enviada": O vendedor devolveu as cotações das rotas do cliente
+- "onboarding_agendado": Foi combinada a call de onboarding/implantação, reunião ou demonstração
 - "perdido": O cliente recusou, disse que não quer, ou está sem responder há mais de 14 dias
 
 REGRAS:
 1. Baseie-se APENAS no conteúdo das mensagens
 2. Se houver dúvida, escolha o estágio mais conservador
-3. Confirmação de reunião/call = "reuniao_agendada"
-4. Recusa explícita ou sem resposta há mais de 14 dias = "perdido"
+3. Recusa explícita ou sem resposta há mais de 14 dias = "perdido"
 
 INFORMAÇÕES DO LEAD:
 - Nome: ${lead.nome}
@@ -105,7 +111,9 @@ Responda APENAS com JSON válido, sem markdown, sem backticks:
     mensagens_analisadas: mensagens.length, aplicado: false,
   });
 
-  const isValidProgression = estagio === "perdido" || ordemSugerido > ordemAtual;
+  // Lead que já fechou (implantação em diante) não é mexido pela IA, nem para "perdido"
+  const isValidProgression = ESTAGIOS_IA.includes(estagio) && ordemAtual < STAGE_ORDER.implantacao
+    && (estagio === "perdido" || ordemSugerido > ordemAtual);
 
   if (confianca >= 70 && isValidProgression) {
     await supabase.from("leads").update({ status: estagio, estagio_fonte: "ia_whatsapp", status_mudou_em: new Date().toISOString() }).eq("id", leadId);

@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import LeadDrawer from "@/components/crm/LeadDrawer";
+import { ESTAGIO_LABEL } from "@/components/crm/estagios";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Lead = Tables<"leads">;
@@ -72,12 +73,7 @@ type TarefaCockpit = {
   tipo: "atrasada" | "hoje" | "outras";
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  novo: "Novo",
-  enriquecido: "Enriquecido",
-  contatado: "Contatado",
-  reuniao_agendada: "Reunião Agendada",
-};
+const STATUS_LABELS: Record<string, string> = ESTAGIO_LABEL;
 
 const PRIORIDADE_PESO: Record<string, number> = {
   imediata: 0,

@@ -8,18 +8,13 @@ import KanbanColumn from "@/components/crm/KanbanColumn";
 import LeadCard from "@/components/crm/LeadCard";
 import LeadDrawer from "@/components/crm/LeadDrawer";
 import AddLeadDialog from "@/components/crm/AddLeadDialog";
+import FecharImplantacaoDialog from "@/components/crm/FecharImplantacaoDialog";
+import { ESTAGIOS, ESTAGIO_IMPLANTACAO } from "@/components/crm/estagios";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Lead = Tables<"leads">;
 
-const COLUNAS = [
-  { id: "novo", title: "Novo" },
-  { id: "enriquecido", title: "Enriquecido" },
-  { id: "contatado", title: "Contatado" },
-  { id: "respondeu", title: "Respondeu" },
-  { id: "reuniao_agendada", title: "Reunião Agendada" },
-  { id: "perdido", title: "Perdido" },
-];
+const COLUNAS = ESTAGIOS;
 
 export default function CRM() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -27,6 +22,7 @@ export default function CRM() {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [implantacaoLead, setImplantacaoLead] = useState<Lead | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -86,6 +82,12 @@ export default function CRM() {
     const currentLead = leads.find(l => l.id === leadId);
     if (currentLead && (currentLead.status || "novo") === newStatus) return;
 
+    // Implantação passa pelo diálogo que lança contrato/parcelas/recorrência
+    if (newStatus === ESTAGIO_IMPLANTACAO) {
+      if (currentLead) setImplantacaoLead(currentLead);
+      return;
+    }
+
     // Optimistic update
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus! } : l));
 
@@ -111,6 +113,10 @@ export default function CRM() {
 
   async function handleStatusChange(leadId: string, newStatus: string) {
     const currentLead = leads.find(l => l.id === leadId);
+    if (newStatus === ESTAGIO_IMPLANTACAO) {
+      if (currentLead) setImplantacaoLead(currentLead);
+      return;
+    }
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
     setDrawerLead(prev => prev && prev.id === leadId ? { ...prev, status: newStatus } : prev);
     await supabase.from("leads").update({ status: newStatus, status_mudou_em: new Date().toISOString() }).eq("id", leadId);
@@ -172,6 +178,16 @@ export default function CRM() {
           </DragOverlay>
         </DndContext>
       </div>
+
+      <FecharImplantacaoDialog
+        lead={implantacaoLead}
+        onClose={() => setImplantacaoLead(null)}
+        onDone={() => {
+          setImplantacaoLead(null);
+          setDrawerOpen(false);
+          fetchLeads();
+        }}
+      />
 
       <LeadDrawer
         lead={drawerLead}

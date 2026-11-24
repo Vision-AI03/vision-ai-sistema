@@ -7,6 +7,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import { ESTAGIO_LABEL } from "@/components/crm/estagios";
 
 interface MetricCard {
   label: string;
@@ -15,13 +16,9 @@ interface MetricCard {
   color?: string;
 }
 
-const ESTAGIO_LABELS: Record<string, string> = {
-  novo: "Novo",
-  enriquecido: "Enriquecido",
-  contatado: "Contatado",
-  reuniao_agendada: "Reunião",
-  perdido: "Perdido",
-};
+const ESTAGIO_LABELS: Record<string, string> = ESTAGIO_LABEL;
+// Fechou = pagou a implantação da COT-AI (ou além)
+const ESTAGIOS_FECHADOS = ["implantacao", "assinante", "upsell"];
 
 const ESTAGIO_COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#22c55e", "#ef4444"];
 const PIE_COLORS = ["#22c55e", "#ef4444", "#6366f1", "#f59e0b", "#64748b"];
@@ -47,6 +44,7 @@ export default function Metricas() {
   const [tempoEstagioData, setTempoEstagioData] = useState<{ estagio: string; dias: number }[]>([]);
   const [totalLeads, setTotalLeads] = useState(0);
   const [taxaConversao, setTaxaConversao] = useState(0);
+  const [totalFechados, setTotalFechados] = useState(0);
 
   useEffect(() => {
     fetchAll();
@@ -73,9 +71,10 @@ export default function Metricas() {
     }));
     setFunilData(funil);
 
-    // Taxa de conversão (reunião agendada / total)
-    const comReuniao = leads.filter(l => l.status === "reuniao_agendada").length;
-    setTaxaConversao(leads.length > 0 ? Math.round((comReuniao / leads.length) * 100) : 0);
+    // Taxa de conversão (fechou implantação / total)
+    const fechados = leads.filter(l => ESTAGIOS_FECHADOS.includes(l.status || "")).length;
+    setTotalFechados(fechados);
+    setTaxaConversao(leads.length > 0 ? Math.round((fechados / leads.length) * 100) : 0);
 
     // Fontes por segmento
     const segmentoCount: Record<string, number> = {};
@@ -152,9 +151,9 @@ export default function Metricas() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Total de Leads" value={totalLeads} sub="no pipeline" />
         <KpiCard
-          label="Taxa Chegou à Reunião"
+          label="Taxa de Fechamento"
           value={`${taxaConversao}%`}
-          sub={`${funilData.find(f => f.name === "Reunião")?.total || 0} leads`}
+          sub={`${totalFechados} fecharam implantação`}
           color={taxaConversao > 20 ? "text-success" : "text-warning"}
         />
         <KpiCard
